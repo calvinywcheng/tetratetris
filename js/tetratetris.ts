@@ -12,6 +12,7 @@ class TetraTetrisGame {
   private INPUT_RATE: number = 5;
   private BLOCK_RATE: number = 1;
   private gameLoopTimerID: number = null;
+  private state: GameState = new GameState();
 
   constructor() {
     this.gameCanvas = <HTMLCanvasElement> document.getElementById("game-canvas");
@@ -55,7 +56,7 @@ class TetraTetrisGame {
 
   private render(): void {
     this.renderHUD();
-    this.renderScore();
+    this.renderGameState();
   }
 
   private renderHUD(): void {
@@ -84,8 +85,26 @@ class TetraTetrisGame {
     this.ctx.restore();
   }
 
-  private renderScore(): void {
+  private renderGameState(): void {
+    this.renderNext();
+    this.renderHold();
+    this.renderScore();
+  }
 
+  private renderNext(): void {
+    // TODO
+  }
+
+  private renderHold(): void {
+    // TODO
+  }
+
+  private renderScore(): void {
+    this.ctx.save();
+    this.ctx.font = "50px Trebuchet MS";
+    let score = this.state.getScore();
+    this.ctx.fillText(score + "", 630, 525);
+    this.ctx.restore();
   }
 }
 
@@ -138,12 +157,41 @@ enum Dir {
 }
 
 class GameState {
-  private landed: number[];
-  private nextDir: Dir;
-  private currTetromino: Tetromino;
+  private landed: number[][];
+  private nextDir: Dir = Dir.N;
+  private currTetromino: Tetromino = null;
   private nextTetromino: Tetromino;
-  private holdTetromino: Tetromino;
+  private holdTetromino: Tetromino = null;
+  private score = 0;
 
+  constructor() {
+    this.initLandedArr();
+    this.genNextTetromino();
+  }
+
+  private initLandedArr(): void {
+    let AREA_LEN = 20;
+    this.landed = new Array(AREA_LEN);
+    for (let i: number = 0; i < this.landed.length; i++) {
+      this.landed[i] = new Array(AREA_LEN);
+      for (let j: number = 0; j < this.landed[i].length; j++) {
+        this.landed[i][j] = 0;
+      }
+    }
+    this.landed[9][9] = -1;
+    this.landed[9][10] = -1;
+    this.landed[10][9] = -1;
+    this.landed[10][10] = -1;
+  }
+
+  private genNextTetromino(): void {
+    let rand: number = Math.floor(Math.random() * 7);
+    // TODO
+  }
+
+  public getScore(): number {
+    return this.score;
+  }
 }
 
 interface Renderable {

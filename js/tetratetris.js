@@ -5,6 +5,7 @@ var TetraTetrisGame = (function () {
         this.INPUT_RATE = 5;
         this.BLOCK_RATE = 1;
         this.gameLoopTimerID = null;
+        this.state = new GameState();
         this.gameCanvas = document.getElementById("game-canvas");
         this.BG_IMG = new Image();
         this.BG_IMG.src = "images/tetris-bg.jpg";
@@ -42,7 +43,7 @@ var TetraTetrisGame = (function () {
     };
     TetraTetrisGame.prototype.render = function () {
         this.renderHUD();
-        this.renderScore();
+        this.renderGameState();
     };
     TetraTetrisGame.prototype.renderHUD = function () {
         this.ctx.save();
@@ -69,7 +70,23 @@ var TetraTetrisGame = (function () {
         this.ctx.fillText("Hold Queue", 610, 270);
         this.ctx.restore();
     };
+    TetraTetrisGame.prototype.renderGameState = function () {
+        this.renderNext();
+        this.renderHold();
+        this.renderScore();
+    };
+    TetraTetrisGame.prototype.renderNext = function () {
+        // TODO
+    };
+    TetraTetrisGame.prototype.renderHold = function () {
+        // TODO
+    };
     TetraTetrisGame.prototype.renderScore = function () {
+        this.ctx.save();
+        this.ctx.font = "50px Trebuchet MS";
+        var score = this.state.getScore();
+        this.ctx.fillText(score + "", 630, 525);
+        this.ctx.restore();
     };
     return TetraTetrisGame;
 })();
@@ -125,7 +142,34 @@ var Dir;
 })(Dir || (Dir = {}));
 var GameState = (function () {
     function GameState() {
+        this.nextDir = Dir.N;
+        this.currTetromino = null;
+        this.holdTetromino = null;
+        this.score = 0;
+        this.initLandedArr();
+        this.genNextTetromino();
     }
+    GameState.prototype.initLandedArr = function () {
+        var AREA_LEN = 20;
+        this.landed = new Array(AREA_LEN);
+        for (var i = 0; i < this.landed.length; i++) {
+            this.landed[i] = new Array(AREA_LEN);
+            for (var j = 0; j < this.landed[i].length; j++) {
+                this.landed[i][j] = 0;
+            }
+        }
+        this.landed[9][9] = -1;
+        this.landed[9][10] = -1;
+        this.landed[10][9] = -1;
+        this.landed[10][10] = -1;
+    };
+    GameState.prototype.genNextTetromino = function () {
+        var rand = Math.floor(Math.random() * 7);
+        // TODO
+    };
+    GameState.prototype.getScore = function () {
+        return this.score;
+    };
     return GameState;
 })();
 var Tetromino = (function () {
