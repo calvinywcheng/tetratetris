@@ -40,11 +40,11 @@ class TetraTetrisGame {
     clearInterval(this.gameLoopTimerID);
   }
 
-  public update(): void {
+  private update(): void {
     console.log("updating");
   }
 
-  public render(): void {
+  private render(): void {
     console.log("rendering");
   }
 };
@@ -93,6 +93,16 @@ class UserInput {
   }
 }
 
+interface Renderable {
+  render(ctx: CanvasRenderingContext2D): void;
+}
+
+class Tetromino implements Renderable {
+  render(ctx: CanvasRenderingContext2D): void {
+    throw new Error("Tetromino is an abstract class.");
+  }
+}
+
 namespace Util {
   export function toKey(keyCode: number): string {
     switch (keyCode) {
@@ -120,4 +130,4 @@ namespace Util {
   }
 }
 
-let game = new TetraTetrisGame();
+new TetraTetrisGame();

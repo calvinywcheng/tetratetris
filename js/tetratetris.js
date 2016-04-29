@@ -84,6 +84,14 @@ var UserInput = (function () {
     };
     return UserInput;
 })();
+var Tetromino = (function () {
+    function Tetromino() {
+    }
+    Tetromino.prototype.render = function (ctx) {
+        throw new Error("Tetromino is an abstract class.");
+    };
+    return Tetromino;
+})();
 var Util;
 (function (Util) {
     function toKey(keyCode) {
@@ -112,5 +120,5 @@ var Util;
     }
     Util.toKey = toKey;
 })(Util || (Util = {}));
-var game = new TetraTetrisGame();
+new TetraTetrisGame();
 //# sourceMappingURL=tetratetris.js.map
