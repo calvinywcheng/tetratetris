@@ -3,7 +3,11 @@
 class TetraTetrisGame {
 
   private gameCanvas: HTMLCanvasElement;
+  private BG_IMG: HTMLImageElement;
   private ctx: CanvasRenderingContext2D;
+  private DEF_CTX
+  private WIDTH: number;
+  private HEIGHT: number;
   private FPS: number = 30;
   private INPUT_RATE: number = 5;
   private BLOCK_RATE: number = 1;
@@ -11,12 +15,17 @@ class TetraTetrisGame {
 
   constructor() {
     this.gameCanvas = <HTMLCanvasElement> document.getElementById("game-canvas");
+    this.BG_IMG = new Image();
+    this.BG_IMG.src = "images/tetris-bg.jpg";
+    this.WIDTH = this.gameCanvas.width;
+    this.HEIGHT = this.gameCanvas.height;
     this.ctx = this.gameCanvas.getContext("2d");
     UserInput.getInstance().initHandlers(this);
+    this.render();
   }
 
   public startGameLoop(): void {
-    console.log("Starting game loop at + " + this.FPS + " FPS...");
+    console.log("Starting game loop at " + this.FPS + " FPS...");
     this.gameLoopTimerID = this.gameLoopTimerID || setInterval(() => {
       this.update();
       this.render();
@@ -45,9 +54,40 @@ class TetraTetrisGame {
   }
 
   private render(): void {
-    console.log("rendering");
+    this.renderHUD();
+    this.renderScore();
   }
-};
+
+  private renderHUD(): void {
+    this.ctx.save();
+    this.ctx.clearRect(0, 0, this.WIDTH, this.HEIGHT);
+    this.ctx.globalAlpha = 0.8;
+    this.ctx.fillStyle = "#f1f1f1";
+    this.ctx.fillRect(0, 0, this.WIDTH, this.HEIGHT);
+    this.ctx.globalAlpha = 0.8;
+    this.ctx.fillStyle = "#000000";
+    this.ctx.fillRect(50, 50, 500, 500);
+    this.ctx.fillRect(600, 50, 150, 150);
+    this.ctx.fillRect(600, 250, 150, 150);
+    this.ctx.fillStyle = "#f1f1f1";
+    this.ctx.fillRect(600, 450, 150, 100);
+    this.ctx.strokeStyle = "#000000";
+    this.ctx.lineWidth = 1;
+    this.ctx.strokeRect(600, 450, 150, 100);
+    this.ctx.globalAlpha = 1.0;
+    this.ctx.fillStyle = "#000000";
+    this.ctx.font = "18px Trebuchet MS";
+    this.ctx.fillText("Score:", 610, 470);
+    this.ctx.fillStyle = "#ffffff";
+    this.ctx.fillText("Next Tetromino", 610, 70);
+    this.ctx.fillText("Hold Queue", 610, 270);
+    this.ctx.restore();
+  }
+
+  private renderScore(): void {
+
+  }
+}
 
 class UserInput {
 
@@ -93,6 +133,19 @@ class UserInput {
   }
 }
 
+enum Dir {
+  N, W, E, S
+}
+
+class GameState {
+  private landed: number[];
+  private nextDir: Dir;
+  private currTetromino: Tetromino;
+  private nextTetromino: Tetromino;
+  private holdTetromino: Tetromino;
+
+}
+
 interface Renderable {
   render(ctx: CanvasRenderingContext2D): void;
 }
@@ -130,4 +183,4 @@ namespace Util {
   }
 }
 
-new TetraTetrisGame();
+let game = new TetraTetrisGame();

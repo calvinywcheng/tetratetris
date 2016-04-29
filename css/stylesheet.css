@@ -3,6 +3,7 @@
 #game-canvas {
 	display: block;
 	margin: auto;
-  border:1px solid #d3d3d3;
-  background-color: #f1f1f1;
+  border:2px solid #d3d3d3;
+  background: url('../images/tetris-bg.jpg');
+  background-size: cover;
 }

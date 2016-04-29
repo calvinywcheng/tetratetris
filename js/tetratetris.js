@@ -6,12 +6,17 @@ var TetraTetrisGame = (function () {
         this.BLOCK_RATE = 1;
         this.gameLoopTimerID = null;
         this.gameCanvas = document.getElementById("game-canvas");
+        this.BG_IMG = new Image();
+        this.BG_IMG.src = "images/tetris-bg.jpg";
+        this.WIDTH = this.gameCanvas.width;
+        this.HEIGHT = this.gameCanvas.height;
         this.ctx = this.gameCanvas.getContext("2d");
         UserInput.getInstance().initHandlers(this);
+        this.render();
     }
     TetraTetrisGame.prototype.startGameLoop = function () {
         var _this = this;
-        console.log("Starting game loop at + " + this.FPS + " FPS...");
+        console.log("Starting game loop at " + this.FPS + " FPS...");
         this.gameLoopTimerID = this.gameLoopTimerID || setInterval(function () {
             _this.update();
             _this.render();
@@ -36,11 +41,38 @@ var TetraTetrisGame = (function () {
         console.log("updating");
     };
     TetraTetrisGame.prototype.render = function () {
-        console.log("rendering");
+        this.renderHUD();
+        this.renderScore();
+    };
+    TetraTetrisGame.prototype.renderHUD = function () {
+        this.ctx.save();
+        this.ctx.clearRect(0, 0, this.WIDTH, this.HEIGHT);
+        this.ctx.globalAlpha = 0.8;
+        this.ctx.fillStyle = "#f1f1f1";
+        this.ctx.fillRect(0, 0, this.WIDTH, this.HEIGHT);
+        this.ctx.globalAlpha = 0.8;
+        this.ctx.fillStyle = "#000000";
+        this.ctx.fillRect(50, 50, 500, 500);
+        this.ctx.fillRect(600, 50, 150, 150);
+        this.ctx.fillRect(600, 250, 150, 150);
+        this.ctx.fillStyle = "#f1f1f1";
+        this.ctx.fillRect(600, 450, 150, 100);
+        this.ctx.strokeStyle = "#000000";
+        this.ctx.lineWidth = 1;
+        this.ctx.strokeRect(600, 450, 150, 100);
+        this.ctx.globalAlpha = 1.0;
+        this.ctx.fillStyle = "#000000";
+        this.ctx.font = "18px Trebuchet MS";
+        this.ctx.fillText("Score:", 610, 470);
+        this.ctx.fillStyle = "#ffffff";
+        this.ctx.fillText("Next Tetromino", 610, 70);
+        this.ctx.fillText("Hold Queue", 610, 270);
+        this.ctx.restore();
+    };
+    TetraTetrisGame.prototype.renderScore = function () {
     };
     return TetraTetrisGame;
 })();
-;
 var UserInput = (function () {
     function UserInput() {
         this.keysPressed = new Array();
@@ -84,6 +116,18 @@ var UserInput = (function () {
     };
     return UserInput;
 })();
+var Dir;
+(function (Dir) {
+    Dir[Dir["N"] = 0] = "N";
+    Dir[Dir["W"] = 1] = "W";
+    Dir[Dir["E"] = 2] = "E";
+    Dir[Dir["S"] = 3] = "S";
+})(Dir || (Dir = {}));
+var GameState = (function () {
+    function GameState() {
+    }
+    return GameState;
+})();
 var Tetromino = (function () {
     function Tetromino() {
     }
@@ -120,5 +164,5 @@ var Util;
     }
     Util.toKey = toKey;
 })(Util || (Util = {}));
-new TetraTetrisGame();
+var game = new TetraTetrisGame();
 //# sourceMappingURL=tetratetris.js.map
