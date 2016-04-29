@@ -1,6 +1,8 @@
 @CHARSET "UTF-8";
 
-#game {
+#game-canvas {
+	display: block;
+	margin: auto;
   border:1px solid #d3d3d3;
   background-color: #f1f1f1;
 }

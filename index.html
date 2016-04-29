@@ -3,11 +3,41 @@
 <head>
 <meta charset="UTF-8">
 <title>TetraTetris</title>
+<link rel="stylesheet"
+  href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.6/css/bootstrap.min.css"
+  integrity="sha384-1q8mTJOASx8j1Au+a5WDVnPi2lkFfwwEAa8hDDdjZlpLegxhjVME1fgjWPGmkzs7"
+  crossorigin="anonymous">
 <link rel="stylesheet" type="text/css" href="css/stylesheet.css">
 </head>
 <body>
-  <h1>TetraTetris</h1>
-  <canvas id="game"></canvas>
+  <div class="container-fluid">
+    <div class="row">
+      <div class="col-md-12">
+        <h1 class="text-center">TetraTetris</h1>
+        <canvas id="game-canvas" width="800" height="600"></canvas>
+        <div class="help-block"></div>
+        <div class="text-center">
+          <button type="button" class="btn btn-success" id="start-game">
+            <span class="glyphicon glyphicon-play"></span> Start Game
+          </button>
+          <button type="button" class="btn btn-warning" data-toggle="button"
+            id="pause-game" disabled>
+            <span class="glyphicon glyphicon-pause"></span> Pause
+          </button>
+          <button type="button" class="btn btn-danger" id="reset-game" disabled>
+            <span class="glyphicon glyphicon-fast-backward"></span> Reset
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+  <script src="https://code.jquery.com/jquery-2.2.3.min.js"
+    integrity="sha256-a23g1Nt4dtEYOj7bR+vTu7+T8VP13humZFBJNIYoEJo="
+    crossorigin="anonymous"></script>
+  <script
+    src="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.6/js/bootstrap.min.js"
+    integrity="sha384-0mSbJDEHialfmuBBQP6A4Qrprq5OVfW37PRR3j5ELqxss1yVqOtnepnHVP9aJ7xS"
+    crossorigin="anonymous"></script>
   <script src="js/tetratetris.js"></script>
 </body>
 </html>
