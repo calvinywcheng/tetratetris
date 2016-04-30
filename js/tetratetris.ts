@@ -39,7 +39,7 @@ class TetraTetrisGame {
   }
 
   public togglePause(): void {
-    if (this.gameLoopTimerID == null) {
+    if (this.gameLoopTimerID === null) {
       console.log("Resuming game.");
       this.startGameLoop();
     }
@@ -170,7 +170,7 @@ class UserInput {
   private keysPressed: number[] = new Array<number>();
 
   public static getInstance(): UserInput {
-    if (this.instance == null) {
+    if (this.instance === null) {
       this.instance = new UserInput();
     }
     return this.instance;
@@ -180,7 +180,7 @@ class UserInput {
     $(document).ready(() => {
       $(document).keydown((e: KeyboardEvent) => {
         let keyCode: number = e.which || e.keyCode;
-        if ($.inArray(keyCode, this.keysPressed) == -1) {
+        if ($.inArray(keyCode, this.keysPressed) === -1) {
           this.keysPressed.push(keyCode);
           console.log("Key(s) pressed: " + this.keysPressed.map(Util.toKey));
         }
@@ -216,7 +216,7 @@ class GameState {
   public static AREA_LEN = 20;
   private _landed: number[][];
   private _nextDir: Dir = Dir.N;
-  private _currTetromino: Tetromino = null;
+  private _currTetromino: Tetromino;
   private _nextTetromino: Tetromino;
   private _holdTetromino: Tetromino = null;
   private _switched: boolean = false;
@@ -225,6 +225,7 @@ class GameState {
   constructor() {
     this.initLandedArr();
     this.genNextTetromino();
+    this.spawnTetromino();
   }
 
   private initLandedArr(): void {
@@ -269,12 +270,48 @@ class GameState {
     }
   }
 
+  private spawnTetromino(): void {
+    this._currTetromino = this._nextTetromino;
+    switch (this._nextDir) {
+      case Dir.N:
+        this._currTetromino.pos = [8, -4];
+        this._nextDir = Dir.E;
+        break;
+      case Dir.W:
+        this._currTetromino.pos = [-4, 8];
+        this._nextDir = Dir.N;
+        break;
+      case Dir.E:
+        this._currTetromino.pos = [19, 8];
+        this._nextDir = Dir.S;
+        break;
+      case Dir.S:
+        this.currTetromino.pos = [8, 19];
+        this._nextDir = Dir.W;
+        break;
+    }
+    this.genNextTetromino();
+  }
+
   public getInput(key: string) {
     // TODO
   }
 
-  public advanceBlock() {
-    // TODO
+  public advanceBlock(): boolean {
+    let curr: Tetromino = this._currTetromino;
+    let dir: Dir = this.getDir(curr.pos);
+    curr.shape.map(row => row.filter(v => v != 0))
+    return false;
+  }
+
+  private getDir(position: [number, number]): Dir {
+    let dx: number = position[0] - 8;
+    let dy: number = position[1] - 8;
+    if (dy >= dx && dy >= -dx) {
+      return Dir.S;
+    } else if (dy) {
+
+    }
   }
 
   public get score(): number {
@@ -300,16 +337,21 @@ class GameState {
 
 class Tetromino {
 
+  private _pos: [number, number];
+
   constructor(private _shape: number[][]) {
-
-  }
-
-  render(ctx: CanvasRenderingContext2D): void {
-    throw new Error("Tetromino is an abstract class.");
   }
 
   public get shape(): number[][] {
     return this._shape;
+  }
+
+  public get pos(): [number, number] {
+    return this._pos;
+  }
+
+  public set pos(pos: [number, number]) {
+    this._pos = pos;
   }
 }
 

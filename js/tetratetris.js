@@ -33,7 +33,7 @@ var TetraTetrisGame = (function () {
         }, 1000 / this.FPS);
     };
     TetraTetrisGame.prototype.togglePause = function () {
-        if (this.gameLoopTimerID == null) {
+        if (this.gameLoopTimerID === null) {
             console.log("Resuming game.");
             this.startGameLoop();
         }
@@ -153,7 +153,7 @@ var UserInput = (function () {
         this.keysPressed = new Array();
     }
     UserInput.getInstance = function () {
-        if (this.instance == null) {
+        if (this.instance === null) {
             this.instance = new UserInput();
         }
         return this.instance;
@@ -163,7 +163,7 @@ var UserInput = (function () {
         $(document).ready(function () {
             $(document).keydown(function (e) {
                 var keyCode = e.which || e.keyCode;
-                if ($.inArray(keyCode, _this.keysPressed) == -1) {
+                if ($.inArray(keyCode, _this.keysPressed) === -1) {
                     _this.keysPressed.push(keyCode);
                     console.log("Key(s) pressed: " + _this.keysPressed.map(Util.toKey));
                 }
@@ -201,12 +201,12 @@ var Dir;
 var GameState = (function () {
     function GameState() {
         this._nextDir = Dir.N;
-        this._currTetromino = null;
         this._holdTetromino = null;
         this._switched = false;
         this._score = 0;
         this.initLandedArr();
         this.genNextTetromino();
+        this.spawnTetromino();
     }
     GameState.prototype.initLandedArr = function () {
         var AREA_LEN = GameState.AREA_LEN;
@@ -248,11 +248,45 @@ var GameState = (function () {
                 break;
         }
     };
+    GameState.prototype.spawnTetromino = function () {
+        this._currTetromino = this._nextTetromino;
+        switch (this._nextDir) {
+            case Dir.N:
+                this._currTetromino.pos = [8, -4];
+                this._nextDir = Dir.E;
+                break;
+            case Dir.W:
+                this._currTetromino.pos = [-4, 8];
+                this._nextDir = Dir.N;
+                break;
+            case Dir.E:
+                this._currTetromino.pos = [19, 8];
+                this._nextDir = Dir.S;
+                break;
+            case Dir.S:
+                this.currTetromino.pos = [8, 19];
+                this._nextDir = Dir.W;
+                break;
+        }
+        this.genNextTetromino();
+    };
     GameState.prototype.getInput = function (key) {
         // TODO
     };
     GameState.prototype.advanceBlock = function () {
-        // TODO
+        var curr = this._currTetromino;
+        var dir = this.getDir(curr.pos);
+        curr.shape.map(function (row) { return row.filter(function (v) { return v != 0; }); });
+        return false;
+    };
+    GameState.prototype.getDir = function (position) {
+        var dx = position[0] - 8;
+        var dy = position[1] - 8;
+        if (dy >= dx && dy >= -dx) {
+            return Dir.S;
+        }
+        else if (dy) {
+        }
     };
     Object.defineProperty(GameState.prototype, "score", {
         get: function () {
@@ -296,12 +330,19 @@ var Tetromino = (function () {
     function Tetromino(_shape) {
         this._shape = _shape;
     }
-    Tetromino.prototype.render = function (ctx) {
-        throw new Error("Tetromino is an abstract class.");
-    };
     Object.defineProperty(Tetromino.prototype, "shape", {
         get: function () {
             return this._shape;
+        },
+        enumerable: true,
+        configurable: true
+    });
+    Object.defineProperty(Tetromino.prototype, "pos", {
+        get: function () {
+            return this._pos;
+        },
+        set: function (pos) {
+            this._pos = pos;
         },
         enumerable: true,
         configurable: true
