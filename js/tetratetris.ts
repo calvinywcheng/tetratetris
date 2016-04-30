@@ -15,7 +15,9 @@ class TetraTetrisGame {
   private prevBlockTime: number;
   private gameLoopTimerID: number = null;
   private state: GameState = new GameState();
-  private blocksViewOffset: [number, number] = [50, 50];
+  private mainViewOffset: [number, number] = [50, 50];
+  private nextBlockOffset: [number, number] = [600, 50];
+  private holdQueueOffset: [number, number] = [600, 250];
 
   constructor() {
     this.gameCanvas = <HTMLCanvasElement> document.getElementById("game-canvas");
@@ -71,9 +73,9 @@ class TetraTetrisGame {
     ctx.fillRect(0, 0, this.WIDTH, this.HEIGHT);
     ctx.globalAlpha = 0.8;
     ctx.fillStyle = "black";
-    ctx.fillRect(this.blocksViewOffset[0], this.blocksViewOffset[1], 500, 500);
-    ctx.fillRect(600, 50, 150, 150);
-    ctx.fillRect(600, 250, 150, 150);
+    ctx.fillRect(this.mainViewOffset[0], this.mainViewOffset[1], 500, 500);
+    ctx.fillRect(this.nextBlockOffset[0], this.nextBlockOffset[1], 150, 150);
+    ctx.fillRect(this.holdQueueOffset[0], this.holdQueueOffset[1], 150, 150);
     ctx.fillStyle = "lightgrey";
     ctx.fillRect(600, 450, 150, 100);
     ctx.strokeStyle = "black";
@@ -97,11 +99,39 @@ class TetraTetrisGame {
   }
 
   private renderNext(): void {
-    // TODO
+    let tetromino = this.state.nextTetromino;
+    if (tetromino != null) {
+      let x = this.nextBlockOffset[0] + 25;
+      let y = this.nextBlockOffset[1] + 45;
+      this.renderTetromino(tetromino, [x, y]);
+    }
   }
 
   private renderHold(): void {
-    // TODO
+    let tetromino = this.state.holdTetromino;
+    if (tetromino != null) {
+      let x = this.holdQueueOffset[0] + 25;
+      let y = this.holdQueueOffset[1] + 45;
+      this.renderTetromino(tetromino, [x, y]);
+    }
+  }
+
+  private renderTetromino(tetromino: Tetromino, offset: [number, number]): void {
+    let ctx: CanvasRenderingContext2D = this.ctx;
+    let BLOCK_SIZE: number = 25;
+    ctx.save();
+    tetromino.shape.forEach((row, i) => {
+      row.forEach((e, j) => {
+        if (e != 0) {
+          let x = j * BLOCK_SIZE + offset[0];
+          let y = i * BLOCK_SIZE + offset[1];
+          ctx.fillStyle = Util.COLOURS[e];
+          ctx.fillRect(x, y, BLOCK_SIZE, BLOCK_SIZE);
+          ctx.strokeRect(x, y, BLOCK_SIZE, BLOCK_SIZE);
+        }
+      })
+    })
+    ctx.restore();
   }
 
   private renderScore(): void {
@@ -116,7 +146,7 @@ class TetraTetrisGame {
   private renderBlocks(): void {
     let ctx = this.ctx;
     let landed: number[][] = this.state.landed;
-    let offset: [number, number] = this.blocksViewOffset;
+    let offset: [number, number] = this.mainViewOffset;
     let BLOCK_SIZE: number = 25;
     ctx.save();
     for (let i = 0; i < GameState.AREA_LEN; i++) {
@@ -213,8 +243,30 @@ class GameState {
   }
 
   private genNextTetromino(): void {
-    let rand: number = Math.floor(Math.random() * 7);
-    // TODO
+    let rand: number = Math.floor(Math.random() * 7) + 1;
+    switch (rand) {
+      case 1:
+        this._nextTetromino = new ITetromino();
+        break;
+      case 2:
+        this._nextTetromino = new JTetromino();
+        break;
+      case 3:
+        this._nextTetromino = new LTetromino();
+        break;
+      case 4:
+        this._nextTetromino = new ZTetromino();
+        break;
+      case 5:
+        this._nextTetromino = new STetromino();
+        break;
+      case 6:
+        this._nextTetromino = new OTetromino();
+        break;
+      case 7:
+        this._nextTetromino = new TTetromino();
+        break;
+    }
   }
 
   public getInput(key: string) {
@@ -232,16 +284,32 @@ class GameState {
   public get landed(): number[][] {
     return this._landed;
   }
+
+  public get currTetromino(): Tetromino {
+    return this._currTetromino;
+  }
+
+  public get nextTetromino(): Tetromino {
+    return this._nextTetromino;
+  }
+
+  public get holdTetromino(): Tetromino {
+    return this._holdTetromino;
+  }
 }
 
 class Tetromino {
 
-  constructor(private shape: number[][]) {
+  constructor(private _shape: number[][]) {
 
   }
 
   render(ctx: CanvasRenderingContext2D): void {
     throw new Error("Tetromino is an abstract class.");
+  }
+
+  public get shape(): number[][] {
+    return this._shape;
   }
 }
 
@@ -330,12 +398,12 @@ class Util {
 
   public static COLOURS: string[] = [
     null,
+    "violet",
     "red",
     "orange",
     "yellow",
     "green",
     "cyan",
-    "blue",
     "purple",
     "lightgrey"
   ];
