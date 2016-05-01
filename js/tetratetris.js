@@ -212,11 +212,11 @@ var TetraTetrisGame = (function () {
             $(document).keyup(function (e) {
                 var keyCode = e.which || e.keyCode;
                 var key = Util.toKey(keyCode);
-                var index = _this._keysPressed.indexOf(keyCode);
+                var index = _this._keysPressed.indexOf(key);
                 if (index !== -1) {
                     _this._keysPressed.splice(index, 1);
+                    console.log("Key released: " + key);
                 }
-                console.log("Key released: " + Util.toKey(keyCode));
             });
             $("#start-game").click(function () {
                 $("#start-game").prop("disabled", true);

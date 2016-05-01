@@ -226,11 +226,12 @@ class TetraTetrisGame {
       });
       $(document).keyup((e: KeyboardEvent) => {
         let keyCode: number = e.which || e.keyCode;
-        let index = this._keysPressed.indexOf(keyCode);
+        let key: string = Util.toKey(keyCode);
+        let index = this._keysPressed.indexOf(key);
         if (index !== -1) {
           this._keysPressed.splice(index, 1);
+          console.log(`Key released: ${key}`);
         }
-        console.log(`Key released: ${Util.toKey(keyCode)}`);
       });
       $("#start-game").click(() => {
         $("#start-game").prop("disabled", true);
