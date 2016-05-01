@@ -764,6 +764,20 @@ var Util = (function () {
                 throw new Error("Direction invalid.");
         }
     };
+    Util.prevDir = function (dir, rot) {
+        switch (dir) {
+            case Dir.N:
+                return (rot === Rot.CW) ? Dir.E : Dir.W;
+            case Dir.E:
+                return (rot === Rot.CW) ? Dir.S : Dir.N;
+            case Dir.S:
+                return (rot === Rot.CW) ? Dir.W : Dir.E;
+            case Dir.W:
+                return (rot === Rot.CW) ? Dir.N : Dir.S;
+            default:
+                throw new Error("Direction invalid.");
+        }
+    };
     Util.toKey = function (keyCode) {
         switch (keyCode) {
             case 37:

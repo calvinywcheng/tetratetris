@@ -729,7 +729,7 @@ class Util {
 
   public static COLOURS: string[] = [null, "violet", "red", "orange", "yellow", "green", "cyan", "purple", "lightgrey"];
 
-  public static toDir(dir: string) {
+  public static toDir(dir: string): Dir {
     switch (dir) {
       case "up":
         return Dir.N;
@@ -744,7 +744,7 @@ class Util {
     }
   }
 
-  public static toRot(rot: string) {
+  public static toRot(rot: string): Rot {
     switch (rot) {
       case "x":
         return Rot.CW;
@@ -755,7 +755,22 @@ class Util {
     }
   }
 
-  public static nextDir(dir: Dir, rot: Rot) {
+  public static nextDir(dir: Dir, rot: Rot): Dir {
+    switch (dir) {
+      case Dir.N:
+        return (rot === Rot.CW) ? Dir.E : Dir.W;
+      case Dir.E:
+        return (rot === Rot.CW) ? Dir.S : Dir.N;
+      case Dir.S:
+        return (rot === Rot.CW) ? Dir.W : Dir.E;
+      case Dir.W:
+        return (rot === Rot.CW) ? Dir.N : Dir.S;
+      default:
+        throw new Error("Direction invalid.");
+    }
+  }
+
+  public static prevDir (dir: Dir, rot: Rot): Dir {
     switch (dir) {
       case Dir.N:
         return (rot === Rot.CW) ? Dir.E : Dir.W;
