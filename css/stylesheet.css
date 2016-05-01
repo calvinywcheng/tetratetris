@@ -4,6 +4,7 @@
 	display: block;
 	margin: auto;
   border:2px solid #d3d3d3;
+  width: 100%;
   background: url('../images/tetris-bg.jpg');
   background-size: cover;
 }
