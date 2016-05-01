@@ -191,7 +191,7 @@ var TetraTetrisGame = (function () {
             ctx.textBaseline = "middle";
             var textX = x + len / 2;
             var textY = y + len / 2;
-            ctx.font = "30px Trebuchet MS";
+            ctx.font = "40px Trebuchet MS";
             ctx.fillText("Game Over!", textX, textY);
             ctx.restore();
         }
