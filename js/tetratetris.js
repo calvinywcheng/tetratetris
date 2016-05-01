@@ -203,10 +203,8 @@ var TetraTetrisGame = (function () {
                 var keyCode = e.which || e.keyCode;
                 var key = Util.toKey(keyCode);
                 if (key != null && $.inArray(key, _this._keysPressed) === -1) {
-                    game.haltGameLoop();
                     _this._keysPressed.push(key);
                     console.log("Key(s) pressed: " + _this._keysPressed);
-                    game.startGameLoop();
                 }
             });
             $(document).keyup(function (e) {
@@ -238,6 +236,7 @@ var GameState = (function () {
     function GameState() {
         this._nextDir = Dir.N;
         this._holdTetromino = null;
+        this._lastRotateTime = Date.now();
         this._switched = false;
         this._score = 0;
         this._gameOver = false;
@@ -293,7 +292,7 @@ var GameState = (function () {
             }
             var tmp = this._currTetromino;
             this._currTetromino = this._holdTetromino;
-            this._currTetromino.setStartPos(Util.prevDir(this._nextDir));
+            this._currTetromino.setStartPos(Util.nextDir(this._nextDir, Rot.CCW));
             this._holdTetromino = tmp;
             this._switched = true;
         }
@@ -422,13 +421,16 @@ var GameState = (function () {
         // TODO
     };
     GameState.prototype.rotateBlock = function (rot) {
-        var curr = this._currTetromino;
-        curr.rotate(rot);
-        if (this.stillInBounds(curr, curr.pos) && this.isValidPos(curr, curr.pos)) {
-            console.log("Rotating block " + Rot[rot]);
-        }
-        else {
-            curr.undoRotate(rot);
+        if (Date.now() - this._lastRotateTime > GameState.ROTATE_DELAY) {
+            var curr = this._currTetromino;
+            curr.rotate(rot);
+            if (this.stillInBounds(curr, curr.pos) && this.isValidPos(curr, curr.pos)) {
+                console.log("Rotating block " + Rot[rot]);
+            }
+            else {
+                curr.undoRotate(rot);
+            }
+            this._lastRotateTime = Date.now();
         }
         return true;
     };
@@ -475,6 +477,7 @@ var GameState = (function () {
         configurable: true
     });
     GameState.AREA_LEN = 20;
+    GameState.ROTATE_DELAY = 100;
     return GameState;
 }());
 var Tetromino = (function () {
@@ -768,20 +771,6 @@ var Util = (function () {
         }
     };
     Util.nextDir = function (dir, rot) {
-        switch (dir) {
-            case Dir.N:
-                return (rot === Rot.CW) ? Dir.E : Dir.W;
-            case Dir.E:
-                return (rot === Rot.CW) ? Dir.S : Dir.N;
-            case Dir.S:
-                return (rot === Rot.CW) ? Dir.W : Dir.E;
-            case Dir.W:
-                return (rot === Rot.CW) ? Dir.N : Dir.S;
-            default:
-                throw new Error("Direction invalid.");
-        }
-    };
-    Util.prevDir = function (dir, rot) {
         switch (dir) {
             case Dir.N:
                 return (rot === Rot.CW) ? Dir.E : Dir.W;

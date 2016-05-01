@@ -218,10 +218,8 @@ class TetraTetrisGame {
         let keyCode: number = e.which || e.keyCode;
         let key: string = Util.toKey(keyCode);
         if (key != null && $.inArray(key, this._keysPressed) === -1) {
-          game.haltGameLoop();
           this._keysPressed.push(key);
           console.log(`Key(s) pressed: ${this._keysPressed}`);
-          game.startGameLoop();
         }
       });
       $(document).keyup((e: KeyboardEvent) => {
@@ -251,11 +249,13 @@ class TetraTetrisGame {
 
 class GameState {
   public static AREA_LEN: number = 20;
+  private static ROTATE_DELAY: number = 100;
   private _landed: number[][];
   private _nextDir: Dir = Dir.N;
   private _currTetromino: Tetromino;
   private _nextTetromino: Tetromino;
   private _holdTetromino: Tetromino = null;
+  private _lastRotateTime: number = Date.now();
   private _switched: boolean = false;
   private _score: number = 0;
   private _gameOver: boolean = false;
@@ -316,7 +316,7 @@ class GameState {
       }
       let tmp: Tetromino = this._currTetromino;
       this._currTetromino = this._holdTetromino;
-      this._currTetromino.setStartPos(Util.prevDir(this._nextDir));
+      this._currTetromino.setStartPos(Util.nextDir(this._nextDir, Rot.CCW));
       this._holdTetromino = tmp;
       this._switched = true;
     }
@@ -448,12 +448,15 @@ class GameState {
   }
 
   private rotateBlock(rot: Rot): boolean {
-    let curr: Tetromino = this._currTetromino;
-    curr.rotate(rot);
-    if (this.stillInBounds(curr, curr.pos) && this.isValidPos(curr, curr.pos)) {
-      console.log(`Rotating block ${Rot[rot]}`);
-    } else {
-      curr.undoRotate(rot);
+    if (Date.now() - this._lastRotateTime > GameState.ROTATE_DELAY) {
+      let curr: Tetromino = this._currTetromino;
+      curr.rotate(rot);
+      if (this.stillInBounds(curr, curr.pos) && this.isValidPos(curr, curr.pos)) {
+        console.log(`Rotating block ${Rot[rot]}`);
+      } else {
+        curr.undoRotate(rot);
+      }
+      this._lastRotateTime = Date.now();
     }
     return true;
   }
@@ -774,21 +777,6 @@ class Util {
   }
 
   public static nextDir(dir: Dir, rot: Rot): Dir {
-    switch (dir) {
-      case Dir.N:
-        return (rot === Rot.CW) ? Dir.E : Dir.W;
-      case Dir.E:
-        return (rot === Rot.CW) ? Dir.S : Dir.N;
-      case Dir.S:
-        return (rot === Rot.CW) ? Dir.W : Dir.E;
-      case Dir.W:
-        return (rot === Rot.CW) ? Dir.N : Dir.S;
-      default:
-        throw new Error("Direction invalid.");
-    }
-  }
-
-  public static prevDir(dir: Dir, rot: Rot): Dir {
     switch (dir) {
       case Dir.N:
         return (rot === Rot.CW) ? Dir.E : Dir.W;
