@@ -8,11 +8,9 @@ var TetraTetrisGame = (function () {
     function TetraTetrisGame() {
         this.BLOCK_SIZE = 25;
         this.FPS = 30;
-        this.INPUT_RATE = 10;
-        this.prevInputTime = Date.now();
-        this.BLOCK_RATE = 0;
-        this.prevBlockTime = Date.now();
-        this.gameLoopTimerID = null;
+        this.renderTimerID = null;
+        this.TPS = 10;
+        this.updateTimerID = null;
         this.state = new GameState();
         this.mainViewOffset = new Pos(50, 50);
         this.nextBlockOffset = new Pos(600, 50);
@@ -28,46 +26,43 @@ var TetraTetrisGame = (function () {
         this.render();
     }
     TetraTetrisGame.prototype.startGameLoop = function () {
-        var _this = this;
-        console.log("Starting game loop at " + this.FPS + " FPS...");
-        this.gameLoopTimerID = this.gameLoopTimerID || setInterval(function () {
-            _this.update();
-            _this.render();
-        }, 1000 / this.FPS);
+        this.updateTimerID = this.updateTimerID ||
+            setInterval(this.update.bind(this), 1000 / this.TPS);
+        this.renderTimerID = this.renderTimerID ||
+            setInterval(this.render.bind(this), 1000 / this.FPS);
+    };
+    TetraTetrisGame.prototype.haltGameLoop = function () {
+        clearInterval(this.updateTimerID);
+        this.updateTimerID = null;
+        clearInterval(this.renderTimerID);
+        this.renderTimerID = null;
     };
     TetraTetrisGame.prototype.togglePause = function () {
-        if (this.gameLoopTimerID == null) {
+        if (this.renderTimerID == null) {
             console.log("Resuming game.");
             this.startGameLoop();
         }
         else {
             console.log("Game paused.");
-            clearInterval(this.gameLoopTimerID);
-            this.gameLoopTimerID = null;
+            this.haltGameLoop();
         }
     };
     TetraTetrisGame.prototype.reset = function () {
         console.log("Resetting game...");
-        clearInterval(this.gameLoopTimerID);
-        this.gameLoopTimerID = null;
+        clearInterval(this.renderTimerID);
+        this.renderTimerID = null;
         this.state = new GameState();
         this.render();
     };
     TetraTetrisGame.prototype.update = function () {
         var _this = this;
-        if (Date.now() - this.prevInputTime > 1000 / this.INPUT_RATE) {
-            var stillAlive = this._keysPressed
-                .map(function (k) { return Util.toKey(k); })
-                .every(function (key) { return _this.state.processInput(key); });
-            if (stillAlive) {
-                this.prevInputTime = Date.now();
-            }
-            else {
-                console.log("Game over!");
-                $("#pause-game").prop("disabled", true);
-                clearInterval(this.gameLoopTimerID);
-                this.gameLoopTimerID = null;
-            }
+        var stillAlive = this._keysPressed
+            .every(function (key) { return _this.state.processInput(key); });
+        if (!stillAlive) {
+            console.log("Game over!");
+            $("#pause-game").prop("disabled", true);
+            this.haltGameLoop();
+            this.render();
         }
     };
     TetraTetrisGame.prototype.render = function () {
@@ -106,7 +101,7 @@ var TetraTetrisGame = (function () {
         this.renderBlocks();
         this.renderCurrent();
         this.renderScore();
-        this.render;
+        this.renderGameOver();
     };
     TetraTetrisGame.prototype.renderNext = function () {
         var tetromino = this.state.nextTetromino;
@@ -178,22 +173,45 @@ var TetraTetrisGame = (function () {
                 return (x.between(0, 19, true) && y.between(0, 19, true)) ? e : 0;
             });
         });
-        this.renderTetromino(new Tetromino(withoutOffScreen), new Pos(xOffset, yOffset));
+        this.renderTetromino(new Tetromino([withoutOffScreen]), new Pos(xOffset, yOffset));
     };
     TetraTetrisGame.prototype.renderGameOver = function () {
+        if (this.state.gameOver) {
+            var ctx = this.ctx;
+            ctx.save();
+            ctx.globalAlpha = 0.5;
+            ctx.fillStyle = "black";
+            var x = this.mainViewOffset.x;
+            var y = this.mainViewOffset.y;
+            var len = 500;
+            ctx.fillRect(x, y, len, len);
+            ctx.globalAlpha = 1.0;
+            ctx.fillStyle = "white";
+            ctx.textAlign = "center";
+            ctx.textBaseline = "middle";
+            var textX = x + len / 2;
+            var textY = y + len / 2;
+            ctx.font = "30px Trebuchet MS";
+            ctx.fillText("Game Over!", textX, textY);
+            ctx.restore();
+        }
     };
     TetraTetrisGame.prototype.initHandlers = function () {
         var _this = this;
         $(document).ready(function () {
             $(document).keydown(function (e) {
                 var keyCode = e.which || e.keyCode;
-                if ($.inArray(keyCode, _this._keysPressed) === -1) {
-                    _this._keysPressed.push(keyCode);
-                    console.log("Key(s) pressed: " + _this._keysPressed.map(Util.toKey));
+                var key = Util.toKey(keyCode);
+                if (key != null && $.inArray(key, _this._keysPressed) === -1) {
+                    game.haltGameLoop();
+                    _this._keysPressed.push(key);
+                    console.log("Key(s) pressed: " + _this._keysPressed);
+                    game.startGameLoop();
                 }
             });
             $(document).keyup(function (e) {
                 var keyCode = e.which || e.keyCode;
+                var key = Util.toKey(keyCode);
                 var index = _this._keysPressed.indexOf(keyCode);
                 if (index !== -1) {
                     _this._keysPressed.splice(index, 1);
@@ -218,8 +236,7 @@ var TetraTetrisGame = (function () {
 }());
 var GameState = (function () {
     function GameState() {
-        this.CENTER_POS = new Pos(10, 10);
-        this._nextDir = 0 /* N */;
+        this._nextDir = Dir.N;
         this._holdTetromino = null;
         this._switched = false;
         this._score = 0;
@@ -271,11 +288,10 @@ var GameState = (function () {
     GameState.prototype.spawnTetromino = function () {
         this._currTetromino = this._nextTetromino;
         this._currTetromino.setStartPos(this._nextDir);
-        this._nextDir = Util.nextDir(this._nextDir, 0 /* CW */);
+        this._nextDir = Util.nextDir(this._nextDir, Rot.CW);
         this.genNextTetromino();
     };
     GameState.prototype.processInput = function (key) {
-        var curr = this._currTetromino;
         switch (key) {
             case "up":
             case "left":
@@ -283,6 +299,10 @@ var GameState = (function () {
             case "down":
                 var dir = Util.toDir(key);
                 return this.advanceBlock(dir);
+            case "z":
+            case "x":
+                var rot = Util.toRot(key);
+                return this.rotateBlock(rot);
             default:
                 throw new Error("Input key not implemeneted");
         }
@@ -342,13 +362,13 @@ var GameState = (function () {
     };
     GameState.translatePos = function (pos, dir) {
         switch (dir) {
-            case 0 /* N */:
+            case Dir.N:
                 return new Pos(pos.x, pos.y - 1);
-            case 1 /* W */:
+            case Dir.W:
                 return new Pos(pos.x - 1, pos.y);
-            case 2 /* E */:
+            case Dir.E:
                 return new Pos(pos.x + 1, pos.y);
-            case 3 /* S */:
+            case Dir.S:
                 return new Pos(pos.x, pos.y + 1);
         }
     };
@@ -383,6 +403,17 @@ var GameState = (function () {
     };
     GameState.prototype.clearSquares = function () {
         // TODO
+    };
+    GameState.prototype.rotateBlock = function (rot) {
+        var curr = this._currTetromino;
+        curr.rotate(rot);
+        if (this.stillInBounds(curr, curr.pos) && this.isValidPos(curr, curr.pos)) {
+            console.log("Rotating block " + Rot[rot]);
+        }
+        else {
+            curr.undoRotate(rot);
+        }
+        return true;
     };
     Object.defineProperty(GameState.prototype, "score", {
         get: function () {
@@ -430,13 +461,15 @@ var GameState = (function () {
     return GameState;
 }());
 var Tetromino = (function () {
-    function Tetromino(_shape) {
+    function Tetromino(_rotations) {
         var _this = this;
-        this._shape = _shape;
+        this._rotations = _rotations;
+        this._rotation = 0;
         this._minX = Number.MAX_VALUE;
         this._maxX = Number.MIN_VALUE;
         this._minY = Number.MAX_VALUE;
         this._maxY = Number.MIN_VALUE;
+        this._shape = this._rotations[0];
         this._shape.forEach(function (row, j) {
             row.forEach(function (e, i) {
                 if (e !== 0) {
@@ -465,18 +498,41 @@ var Tetromino = (function () {
         enumerable: true,
         configurable: true
     });
+    Tetromino.prototype.rotate = function (rot) {
+        switch (rot) {
+            case Rot.CW:
+                this._rotation = (this._rotation + 1).mod(4);
+                break;
+            case Rot.CCW:
+                this._rotation = (this._rotation - 1).mod(4);
+                break;
+            default:
+                throw new Error("Rotation not defined");
+        }
+        this._shape = this._rotations[this._rotation];
+    };
+    Tetromino.prototype.undoRotate = function (rot) {
+        switch (rot) {
+            case Rot.CW:
+                return this.rotate(Rot.CCW);
+            case Rot.CCW:
+                return this.rotate(Rot.CW);
+            default:
+                throw new Error("Rotation not defined");
+        }
+    };
     Tetromino.prototype.setStartPos = function (dir) {
         switch (dir) {
-            case 0 /* N */:
+            case Dir.N:
                 this._pos = new Pos(8, 0 - this._maxY);
                 break;
-            case 1 /* W */:
+            case Dir.W:
                 this._pos = new Pos(0 - this._maxX, 8);
                 break;
-            case 2 /* E */:
+            case Dir.E:
                 this._pos = new Pos(19 - this._minX, 8);
                 break;
-            case 3 /* S */:
+            case Dir.S:
                 this._pos = new Pos(8, 19 - this._minY);
                 break;
             default:
@@ -493,7 +549,27 @@ var ITetromino = (function (_super) {
     __extends(ITetromino, _super);
     function ITetromino() {
         var x = 1;
-        _super.call(this, [[0, 0, 0, 0], [x, x, x, x], [0, 0, 0, 0], [0, 0, 0, 0]]);
+        _super.call(this, [[
+                [0, 0, 0, 0],
+                [x, x, x, x],
+                [0, 0, 0, 0],
+                [0, 0, 0, 0]
+            ], [
+                [0, 0, x, 0],
+                [0, 0, x, 0],
+                [0, 0, x, 0],
+                [0, 0, x, 0]
+            ], [
+                [0, 0, 0, 0],
+                [0, 0, 0, 0],
+                [x, x, x, x],
+                [0, 0, 0, 0]
+            ], [
+                [0, x, 0, 0],
+                [0, x, 0, 0],
+                [0, x, 0, 0],
+                [0, x, 0, 0]
+            ]]);
     }
     return ITetromino;
 }(Tetromino));
@@ -501,7 +577,27 @@ var JTetromino = (function (_super) {
     __extends(JTetromino, _super);
     function JTetromino() {
         var x = 2;
-        _super.call(this, [[0, 0, x, 0], [0, 0, x, 0], [0, x, x, 0], [0, 0, 0, 0]]);
+        _super.call(this, [[
+                [0, 0, x, 0],
+                [0, 0, x, 0],
+                [0, x, x, 0],
+                [0, 0, 0, 0]
+            ], [
+                [0, x, 0, 0],
+                [0, x, x, x],
+                [0, 0, 0, 0],
+                [0, 0, 0, 0]
+            ], [
+                [0, 0, x, x],
+                [0, 0, x, 0],
+                [0, 0, x, 0],
+                [0, 0, 0, 0]
+            ], [
+                [0, 0, 0, 0],
+                [0, x, x, x],
+                [0, 0, 0, x],
+                [0, 0, 0, 0]
+            ]]);
     }
     return JTetromino;
 }(Tetromino));
@@ -509,7 +605,27 @@ var LTetromino = (function (_super) {
     __extends(LTetromino, _super);
     function LTetromino() {
         var x = 3;
-        _super.call(this, [[0, x, 0, 0], [0, x, 0, 0], [0, x, x, 0], [0, 0, 0, 0]]);
+        _super.call(this, [[
+                [0, x, 0, 0],
+                [0, x, 0, 0],
+                [0, x, x, 0],
+                [0, 0, 0, 0]
+            ], [
+                [0, 0, 0, 0],
+                [x, x, x, 0],
+                [x, 0, 0, 0],
+                [0, 0, 0, 0]
+            ], [
+                [x, x, 0, 0],
+                [0, x, 0, 0],
+                [0, x, 0, 0],
+                [0, 0, 0, 0]
+            ], [
+                [0, 0, x, 0],
+                [x, x, x, 0],
+                [0, 0, 0, 0],
+                [0, 0, 0, 0]
+            ]]);
     }
     return LTetromino;
 }(Tetromino));
@@ -517,7 +633,27 @@ var ZTetromino = (function (_super) {
     __extends(ZTetromino, _super);
     function ZTetromino() {
         var x = 4;
-        _super.call(this, [[0, 0, 0, 0], [x, x, 0, 0], [0, x, x, 0], [0, 0, 0, 0]]);
+        _super.call(this, [[
+                [0, 0, 0, 0],
+                [x, x, 0, 0],
+                [0, x, x, 0],
+                [0, 0, 0, 0]
+            ], [
+                [0, x, 0, 0],
+                [x, x, 0, 0],
+                [x, 0, 0, 0],
+                [0, 0, 0, 0]
+            ], [
+                [x, x, 0, 0],
+                [0, x, x, 0],
+                [0, 0, 0, 0],
+                [0, 0, 0, 0]
+            ], [
+                [0, 0, x, 0],
+                [0, x, x, 0],
+                [0, x, 0, 0],
+                [0, 0, 0, 0]
+            ]]);
     }
     return ZTetromino;
 }(Tetromino));
@@ -525,7 +661,27 @@ var STetromino = (function (_super) {
     __extends(STetromino, _super);
     function STetromino() {
         var x = 5;
-        _super.call(this, [[0, 0, 0, 0], [0, 0, x, x], [0, x, x, 0], [0, 0, 0, 0]]);
+        _super.call(this, [[
+                [0, 0, 0, 0],
+                [0, 0, x, x],
+                [0, x, x, 0],
+                [0, 0, 0, 0]
+            ], [
+                [0, 0, 0, 0],
+                [0, 0, x, 0],
+                [0, 0, x, x],
+                [0, 0, 0, x]
+            ], [
+                [0, 0, 0, 0],
+                [0, 0, 0, 0],
+                [0, 0, x, x],
+                [0, x, x, 0]
+            ], [
+                [0, 0, 0, 0],
+                [0, x, 0, 0],
+                [0, x, x, 0],
+                [0, 0, x, 0]
+            ]]);
     }
     return STetromino;
 }(Tetromino));
@@ -533,7 +689,8 @@ var OTetromino = (function (_super) {
     __extends(OTetromino, _super);
     function OTetromino() {
         var x = 6;
-        _super.call(this, [[0, 0, 0, 0], [0, x, x, 0], [0, x, x, 0], [0, 0, 0, 0]]);
+        var square = [[0, 0, 0, 0], [0, x, x, 0], [0, x, x, 0], [0, 0, 0, 0]];
+        _super.call(this, [square, square, square, square]);
     }
     return OTetromino;
 }(Tetromino));
@@ -541,7 +698,27 @@ var TTetromino = (function (_super) {
     __extends(TTetromino, _super);
     function TTetromino() {
         var x = 7;
-        _super.call(this, [[0, 0, 0, 0], [0, x, 0, 0], [x, x, x, 0], [0, 0, 0, 0]]);
+        _super.call(this, [[
+                [0, 0, 0, 0],
+                [0, x, 0, 0],
+                [x, x, x, 0],
+                [0, 0, 0, 0]
+            ], [
+                [0, 0, 0, 0],
+                [0, x, 0, 0],
+                [0, x, x, 0],
+                [0, x, 0, 0]
+            ], [
+                [0, 0, 0, 0],
+                [0, 0, 0, 0],
+                [x, x, x, 0],
+                [0, x, 0, 0]
+            ], [
+                [0, 0, 0, 0],
+                [0, x, 0, 0],
+                [x, x, 0, 0],
+                [0, x, 0, 0]
+            ]]);
     }
     return TTetromino;
 }(Tetromino));
@@ -552,27 +729,37 @@ var Util = (function () {
     Util.toDir = function (dir) {
         switch (dir) {
             case "up":
-                return 0 /* N */;
+                return Dir.N;
             case "left":
-                return 1 /* W */;
+                return Dir.W;
             case "right":
-                return 2 /* E */;
+                return Dir.E;
             case "down":
-                return 3 /* S */;
+                return Dir.S;
             default:
                 throw new Error("Direction invalid.");
         }
     };
+    Util.toRot = function (rot) {
+        switch (rot) {
+            case "x":
+                return Rot.CW;
+            case "z":
+                return Rot.CCW;
+            default:
+                throw new Error("Rotation invalid.");
+        }
+    };
     Util.nextDir = function (dir, rot) {
         switch (dir) {
-            case 0 /* N */:
-                return (rot === 0 /* CW */) ? 2 /* E */ : 1 /* W */;
-            case 2 /* E */:
-                return (rot === 0 /* CW */) ? 3 /* S */ : 0 /* N */;
-            case 3 /* S */:
-                return (rot === 0 /* CW */) ? 1 /* W */ : 2 /* E */;
-            case 1 /* W */:
-                return (rot === 0 /* CW */) ? 0 /* N */ : 3 /* S */;
+            case Dir.N:
+                return (rot === Rot.CW) ? Dir.E : Dir.W;
+            case Dir.E:
+                return (rot === Rot.CW) ? Dir.S : Dir.N;
+            case Dir.S:
+                return (rot === Rot.CW) ? Dir.W : Dir.E;
+            case Dir.W:
+                return (rot === Rot.CW) ? Dir.N : Dir.S;
             default:
                 throw new Error("Direction invalid.");
         }
@@ -587,10 +774,6 @@ var Util = (function () {
                 return "right";
             case 40:
                 return "down";
-            case 80:
-                return "p";
-            case 32:
-                return "space";
             case 88:
                 return "x";
             case 90:
@@ -598,12 +781,24 @@ var Util = (function () {
             case 16:
                 return "shift";
             default:
-                return String.fromCharCode(keyCode).toLowerCase();
+                return null;
         }
     };
     Util.COLOURS = [null, "violet", "red", "orange", "yellow", "green", "cyan", "purple", "lightgrey"];
     return Util;
 }());
+var Dir;
+(function (Dir) {
+    Dir[Dir["N"] = 0] = "N";
+    Dir[Dir["W"] = 270] = "W";
+    Dir[Dir["E"] = 90] = "E";
+    Dir[Dir["S"] = 180] = "S";
+})(Dir || (Dir = {}));
+var Rot;
+(function (Rot) {
+    Rot[Rot["CW"] = 90] = "CW";
+    Rot[Rot["CCW"] = -90] = "CCW";
+})(Rot || (Rot = {}));
 var Pos = (function () {
     function Pos(_x, _y) {
         this._x = _x;
@@ -632,6 +827,9 @@ Number.prototype.between = function (a, b, inc) {
     var min = Math.min(a, b);
     var max = Math.max(a, b);
     return inc ? min <= this && this <= max : min < this && this < max;
+};
+Number.prototype.mod = function (n) {
+    return ((this % n) + n) % n;
 };
 var game = new TetraTetrisGame();
 //# sourceMappingURL=tetratetris.js.map

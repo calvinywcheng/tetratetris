@@ -9,16 +9,14 @@ class TetraTetrisGame {
   private HEIGHT: number;
   private BLOCK_SIZE: number = 25;
   private FPS: number = 30;
-  private INPUT_RATE: number = 10;
-  private prevInputTime: number = Date.now();
-  private BLOCK_RATE: number = 0;
-  private prevBlockTime: number = Date.now();
-  private gameLoopTimerID: number = null;
+  private renderTimerID: number = null;
+  private TPS: number = 10;
+  private updateTimerID: number = null;
   private state: GameState = new GameState();
   private mainViewOffset: Pos = new Pos(50, 50);
   private nextBlockOffset: Pos = new Pos(600, 50);
   private holdQueueOffset: Pos = new Pos(600, 250);
-  private _keysPressed: number[] = [];
+  private _keysPressed: string[] = [];
 
   constructor() {
     this._gameCanvas = <HTMLCanvasElement> document.getElementById("game-canvas");
@@ -32,45 +30,45 @@ class TetraTetrisGame {
   }
 
   public startGameLoop(): void {
-    console.log("Starting game loop at " + this.FPS + " FPS...");
-    this.gameLoopTimerID = this.gameLoopTimerID || setInterval(() => {
-        this.update();
-        this.render();
-      }, 1000 / this.FPS);
+    this.updateTimerID = this.updateTimerID ||
+      setInterval(this.update.bind(this), 1000 / this.TPS);
+    this.renderTimerID = this.renderTimerID ||
+      setInterval(this.render.bind(this), 1000 / this.FPS);
+  }
+
+  public haltGameLoop(): void {
+    clearInterval(this.updateTimerID);
+    this.updateTimerID = null;
+    clearInterval(this.renderTimerID);
+    this.renderTimerID = null;
   }
 
   public togglePause(): void {
-    if (this.gameLoopTimerID == null) {
+    if (this.renderTimerID == null) {
       console.log("Resuming game.");
       this.startGameLoop();
     } else {
       console.log("Game paused.");
-      clearInterval(this.gameLoopTimerID);
-      this.gameLoopTimerID = null;
+      this.haltGameLoop();
     }
   }
 
   public reset(): void {
     console.log("Resetting game...");
-    clearInterval(this.gameLoopTimerID);
-    this.gameLoopTimerID = null;
+    clearInterval(this.renderTimerID);
+    this.renderTimerID = null;
     this.state = new GameState();
     this.render();
   }
 
   private update(): void {
-    if (Date.now() - this.prevInputTime > 1000 / this.INPUT_RATE) {
-      let stillAlive: boolean = this._keysPressed
-        .map((k: number): string => Util.toKey(k))
-        .every((key: string) => this.state.processInput(key));
-      if (stillAlive) {
-        this.prevInputTime = Date.now();
-      } else {
-        console.log("Game over!");
-        $("#pause-game").prop("disabled", true);
-        clearInterval(this.gameLoopTimerID);
-        this.gameLoopTimerID = null;
-      }
+    let stillAlive: boolean = this._keysPressed
+      .every((key: string) => this.state.processInput(key));
+    if (!stillAlive) {
+      console.log("Game over!");
+      $("#pause-game").prop("disabled", true);
+      this.haltGameLoop();
+      this.render();
     }
   }
 
@@ -112,7 +110,7 @@ class TetraTetrisGame {
     this.renderBlocks();
     this.renderCurrent();
     this.renderScore();
-    this.render
+    this.renderGameOver();
   }
 
   private renderNext(): void {
@@ -189,20 +187,41 @@ class TetraTetrisGame {
         return (x.between(0, 19, true) && y.between(0, 19, true)) ? e : 0;
       });
     });
-    this.renderTetromino(new Tetromino(withoutOffScreen), new Pos(xOffset, yOffset));
+    this.renderTetromino(new Tetromino([withoutOffScreen]), new Pos(xOffset, yOffset));
   }
 
   private renderGameOver(): void {
-
+    if (this.state.gameOver) {
+      let ctx: CanvasRenderingContext2D = this.ctx;
+      ctx.save();
+      ctx.globalAlpha = 0.5;
+      ctx.fillStyle = "black";
+      let x: number = this.mainViewOffset.x;
+      let y: number = this.mainViewOffset.y;
+      let len: number = 500;
+      ctx.fillRect(x, y, len, len);
+      ctx.globalAlpha = 1.0;
+      ctx.fillStyle = "white";
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      let textX: number = x + len / 2;
+      let textY: number = y + len / 2;
+      ctx.font = "30px Trebuchet MS";
+      ctx.fillText("Game Over!", textX, textY);
+      ctx.restore();
+    }
   }
 
   private initHandlers(): void {
     $(document).ready(() => {
       $(document).keydown((e: KeyboardEvent) => {
         let keyCode: number = e.which || e.keyCode;
-        if ($.inArray(keyCode, this._keysPressed) === -1) {
-          this._keysPressed.push(keyCode);
-          console.log(`Key(s) pressed: ${this._keysPressed.map(Util.toKey)}`);
+        let key: string = Util.toKey(keyCode);
+        if (key != null && $.inArray(key, this._keysPressed) === -1) {
+          game.haltGameLoop();
+          this._keysPressed.push(key);
+          console.log(`Key(s) pressed: ${this._keysPressed}`);
+          game.startGameLoop();
         }
       });
       $(document).keyup((e: KeyboardEvent) => {
@@ -231,7 +250,6 @@ class TetraTetrisGame {
 
 class GameState {
   public static AREA_LEN: number = 20;
-  private CENTER_POS: Pos = new Pos(10, 10);
   private _landed: number[][];
   private _nextDir: Dir = Dir.N;
   private _currTetromino: Tetromino;
@@ -297,7 +315,6 @@ class GameState {
   }
 
   public processInput(key: string): boolean {
-    let curr: Tetromino = this._currTetromino;
     switch (key) {
       case "up":
       case "left":
@@ -305,6 +322,10 @@ class GameState {
       case "down":
         let dir: Dir = Util.toDir(key);
         return this.advanceBlock(dir);
+      case "z":
+      case "x":
+        let rot: Rot = Util.toRot(key);
+        return this.rotateBlock(rot);
       default:
         throw new Error("Input key not implemeneted");
     }
@@ -407,6 +428,17 @@ class GameState {
     // TODO
   }
 
+  private rotateBlock(rot: Rot): boolean {
+    let curr: Tetromino = this._currTetromino;
+    curr.rotate(rot);
+    if (this.stillInBounds(curr, curr.pos) && this.isValidPos(curr, curr.pos)) {
+      console.log(`Rotating block ${Rot[rot]}`);
+    } else {
+      curr.undoRotate(rot);
+    }
+    return true;
+  }
+
   public get score(): number {
     return this._score;
   }
@@ -435,12 +467,15 @@ class GameState {
 class Tetromino {
 
   private _pos: Pos;
+  private _shape: number[][];
+  private _rotation: number = 0;
   private _minX: number = Number.MAX_VALUE;
   private _maxX: number = Number.MIN_VALUE;
   private _minY: number = Number.MAX_VALUE;
   private _maxY: number = Number.MIN_VALUE;
 
-  constructor(private _shape: number[][]) {
+  constructor(private _rotations: number[][][]) {
+    this._shape = this._rotations[0];
     this._shape.forEach((row, j) => {
       row.forEach((e, i) => {
         if (e !== 0) {
@@ -463,6 +498,31 @@ class Tetromino {
 
   public set pos(pos: Pos) {
     this._pos = pos;
+  }
+
+  public rotate(rot: Rot): void {
+    switch (rot) {
+      case Rot.CW:
+        this._rotation = (this._rotation + 1).mod(4);
+        break;
+      case Rot.CCW:
+        this._rotation = (this._rotation - 1).mod(4);
+        break;
+      default:
+        throw new Error("Rotation not defined");
+    }
+    this._shape = this._rotations[this._rotation];
+  }
+
+  public undoRotate(rot: Rot): void {
+    switch (rot) {
+      case Rot.CW:
+        return this.rotate(Rot.CCW);
+      case Rot.CCW:
+        return this.rotate(Rot.CW);
+      default:
+        throw new Error("Rotation not defined");
+    }
   }
 
   public setStartPos(dir: Dir): Pos {
@@ -493,49 +553,170 @@ class Tetromino {
 class ITetromino extends Tetromino {
   constructor() {
     let x = 1;
-    super([[0, 0, 0, 0], [x, x, x, x], [0, 0, 0, 0], [0, 0, 0, 0]]);
+    super([[
+      [0, 0, 0, 0],
+      [x, x, x, x],
+      [0, 0, 0, 0],
+      [0, 0, 0, 0]
+    ], [
+      [0, 0, x, 0],
+      [0, 0, x, 0],
+      [0, 0, x, 0],
+      [0, 0, x, 0]
+    ], [
+      [0, 0, 0, 0],
+      [0, 0, 0, 0],
+      [x, x, x, x],
+      [0, 0, 0, 0]
+    ], [
+      [0, x, 0, 0],
+      [0, x, 0, 0],
+      [0, x, 0, 0],
+      [0, x, 0, 0]
+    ]]);
   }
 }
 
 class JTetromino extends Tetromino {
   constructor() {
     let x = 2;
-    super([[0, 0, x, 0], [0, 0, x, 0], [0, x, x, 0], [0, 0, 0, 0]]);
+    super([[
+      [0, 0, x, 0],
+      [0, 0, x, 0],
+      [0, x, x, 0],
+      [0, 0, 0, 0]
+    ], [
+      [0, x, 0, 0],
+      [0, x, x, x],
+      [0, 0, 0, 0],
+      [0, 0, 0, 0]
+    ], [
+      [0, 0, x, x],
+      [0, 0, x, 0],
+      [0, 0, x, 0],
+      [0, 0, 0, 0]
+    ], [
+      [0, 0, 0, 0],
+      [0, x, x, x],
+      [0, 0, 0, x],
+      [0, 0, 0, 0]
+    ]]);
   }
 }
 
 class LTetromino extends Tetromino {
   constructor() {
     let x = 3;
-    super([[0, x, 0, 0], [0, x, 0, 0], [0, x, x, 0], [0, 0, 0, 0]]);
+    super([[
+      [0, x, 0, 0],
+      [0, x, 0, 0],
+      [0, x, x, 0],
+      [0, 0, 0, 0]
+    ], [
+      [0, 0, 0, 0],
+      [x, x, x, 0],
+      [x, 0, 0, 0],
+      [0, 0, 0, 0]
+    ], [
+      [x, x, 0, 0],
+      [0, x, 0, 0],
+      [0, x, 0, 0],
+      [0, 0, 0, 0]
+    ], [
+      [0, 0, x, 0],
+      [x, x, x, 0],
+      [0, 0, 0, 0],
+      [0, 0, 0, 0]
+    ]]);
   }
 }
 
 class ZTetromino extends Tetromino {
   constructor() {
     let x = 4;
-    super([[0, 0, 0, 0], [x, x, 0, 0], [0, x, x, 0], [0, 0, 0, 0]]);
+    super([[
+      [0, 0, 0, 0],
+      [x, x, 0, 0],
+      [0, x, x, 0],
+      [0, 0, 0, 0]
+    ], [
+      [0, x, 0, 0],
+      [x, x, 0, 0],
+      [x, 0, 0, 0],
+      [0, 0, 0, 0]
+    ], [
+      [x, x, 0, 0],
+      [0, x, x, 0],
+      [0, 0, 0, 0],
+      [0, 0, 0, 0]
+    ], [
+      [0, 0, x, 0],
+      [0, x, x, 0],
+      [0, x, 0, 0],
+      [0, 0, 0, 0]
+    ]]);
   }
 }
 
 class STetromino extends Tetromino {
   constructor() {
     let x = 5;
-    super([[0, 0, 0, 0], [0, 0, x, x], [0, x, x, 0], [0, 0, 0, 0]]);
+    super([[
+      [0, 0, 0, 0],
+      [0, 0, x, x],
+      [0, x, x, 0],
+      [0, 0, 0, 0]
+    ], [
+      [0, 0, 0, 0],
+      [0, 0, x, 0],
+      [0, 0, x, x],
+      [0, 0, 0, x]
+    ], [
+      [0, 0, 0, 0],
+      [0, 0, 0, 0],
+      [0, 0, x, x],
+      [0, x, x, 0]
+    ], [
+      [0, 0, 0, 0],
+      [0, x, 0, 0],
+      [0, x, x, 0],
+      [0, 0, x, 0]
+    ]]);
   }
 }
 
 class OTetromino extends Tetromino {
   constructor() {
     let x = 6;
-    super([[0, 0, 0, 0], [0, x, x, 0], [0, x, x, 0], [0, 0, 0, 0]]);
+    let square = [[0, 0, 0, 0], [0, x, x, 0], [0, x, x, 0], [0, 0, 0, 0]];
+    super([square, square, square, square]);
   }
 }
 
 class TTetromino extends Tetromino {
   constructor() {
     let x = 7;
-    super([[0, 0, 0, 0], [0, x, 0, 0], [x, x, x, 0], [0, 0, 0, 0]]);
+    super([[
+      [0, 0, 0, 0],
+      [0, x, 0, 0],
+      [x, x, x, 0],
+      [0, 0, 0, 0]
+    ], [
+      [0, 0, 0, 0],
+      [0, x, 0, 0],
+      [0, x, x, 0],
+      [0, x, 0, 0]
+    ], [
+      [0, 0, 0, 0],
+      [0, 0, 0, 0],
+      [x, x, x, 0],
+      [0, x, 0, 0]
+    ], [
+      [0, 0, 0, 0],
+      [0, x, 0, 0],
+      [x, x, 0, 0],
+      [0, x, 0, 0]
+    ]]);
   }
 }
 
@@ -559,6 +740,17 @@ class Util {
         return Dir.S;
       default:
         throw new Error("Direction invalid.");
+    }
+  }
+
+  public static toRot(rot: string) {
+    switch (rot) {
+      case "x":
+        return Rot.CW;
+      case "z":
+        return Rot.CCW;
+      default:
+        throw new Error("Rotation invalid.");
     }
   }
 
@@ -587,10 +779,6 @@ class Util {
         return "right";
       case 40:
         return "down";
-      case 80:
-        return "p";
-      case 32:
-        return "space";
       case 88:
         return "x";
       case 90:
@@ -598,17 +786,17 @@ class Util {
       case 16:
         return "shift";
       default:
-        return String.fromCharCode(keyCode).toLowerCase();
+        return null;
     }
   }
 }
 
-const enum Dir {
-  N, W, E, S
+enum Dir {
+  N = 0, W = 270, E = 90, S = 180
 }
 
-const enum Rot {
-  CW, CCW
+enum Rot {
+  CW = 90, CCW = -90
 }
 
 class Pos {
@@ -630,12 +818,17 @@ class Pos {
 
 interface Number {
   between(a: number, b: number, inc: boolean): boolean;
+  mod(n: number): number;
 }
 
 Number.prototype.between = function (a: number, b: number, inc: boolean): boolean {
   let min: number = Math.min(a, b);
   let max: number = Math.max(a, b);
   return inc ? min <= this && this <= max : min < this && this < max;
+};
+
+Number.prototype.mod = function (n: number): number {
+  return ((this % n) + n) % n;
 };
 
 let game = new TetraTetrisGame();
