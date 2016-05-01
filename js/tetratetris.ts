@@ -308,9 +308,25 @@ class GameState {
     }
   }
 
+  private swapWithHold(): boolean {
+    if (!this._switched) {
+      if (this._holdTetromino == null) {
+        this._holdTetromino = this._nextTetromino;
+        this.genNextTetromino();
+      }
+      let tmp: Tetromino = this._currTetromino;
+      this._currTetromino = this._holdTetromino;
+      this._currTetromino.setStartPos(Util.prevDir(this._nextDir));
+      this._holdTetromino = tmp;
+      this._switched = true;
+    }
+    return true;
+  }
+
   private spawnTetromino(): void {
     this._currTetromino = this._nextTetromino;
     this._currTetromino.setStartPos(this._nextDir);
+    this._switched = false;
     this._nextDir = Util.nextDir(this._nextDir, Rot.CW);
     this.genNextTetromino();
   }
@@ -327,6 +343,8 @@ class GameState {
       case "x":
         let rot: Rot = Util.toRot(key);
         return this.rotateBlock(rot);
+      case "shift":
+        return this.swapWithHold();
       default:
         throw new Error("Input key not implemeneted");
     }

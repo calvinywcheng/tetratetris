@@ -285,9 +285,24 @@ var GameState = (function () {
                 break;
         }
     };
+    GameState.prototype.swapWithHold = function () {
+        if (!this._switched) {
+            if (this._holdTetromino == null) {
+                this._holdTetromino = this._nextTetromino;
+                this.genNextTetromino();
+            }
+            var tmp = this._currTetromino;
+            this._currTetromino = this._holdTetromino;
+            this._currTetromino.setStartPos(Util.prevDir(this._nextDir));
+            this._holdTetromino = tmp;
+            this._switched = true;
+        }
+        return true;
+    };
     GameState.prototype.spawnTetromino = function () {
         this._currTetromino = this._nextTetromino;
         this._currTetromino.setStartPos(this._nextDir);
+        this._switched = false;
         this._nextDir = Util.nextDir(this._nextDir, Rot.CW);
         this.genNextTetromino();
     };
@@ -303,6 +318,8 @@ var GameState = (function () {
             case "x":
                 var rot = Util.toRot(key);
                 return this.rotateBlock(rot);
+            case "shift":
+                return this.swapWithHold();
             default:
                 throw new Error("Input key not implemeneted");
         }
