@@ -9,9 +9,9 @@ class TetraTetrisGame {
   private HEIGHT: number;
   private BLOCK_SIZE: number = 25;
   private FPS: number = 30;
-  private INPUT_RATE: number = 5;
+  private INPUT_RATE: number = 10;
   private prevInputTime: number = Date.now();
-  private BLOCK_RATE: number = 10;
+  private BLOCK_RATE: number = 0;
   private prevBlockTime: number = Date.now();
   private gameLoopTimerID: number = null;
   private state: GameState = new GameState();
@@ -60,19 +60,16 @@ class TetraTetrisGame {
 
   private update(): void {
     if (Date.now() - this.prevInputTime > 1000 / this.INPUT_RATE) {
-      this._keysPressed
+      let stillAlive: boolean = this._keysPressed
         .map((k: number): string => Util.toKey(k))
-        .forEach((key: string): void => this.state.processInput(key));
-      this.prevInputTime = Date.now();
-    }
-    if (Date.now() - this.prevBlockTime > 1000 / this.BLOCK_RATE) {
-      console.log("move block");
-      let stillAlive: boolean = this.state.advanceBlock();
+        .every((key: string) => this.state.processInput(key));
       if (stillAlive) {
-        this.prevBlockTime = Date.now();
+        this.prevInputTime = Date.now();
       } else {
+        console.log("Game over!");
         $("#pause-game").prop("disabled", true);
         clearInterval(this.gameLoopTimerID);
+        this.gameLoopTimerID = null;
       }
     }
   }
@@ -115,6 +112,7 @@ class TetraTetrisGame {
     this.renderBlocks();
     this.renderCurrent();
     this.renderScore();
+    this.render
   }
 
   private renderNext(): void {
@@ -156,8 +154,7 @@ class TetraTetrisGame {
     let ctx = this.ctx;
     ctx.save();
     ctx.font = "50px Trebuchet MS";
-    let score = this.state.score;
-    ctx.fillText(score + "", 630, 525);
+    ctx.fillText(this.state.score + "", 630, 525);
     ctx.restore();
   }
 
@@ -195,13 +192,17 @@ class TetraTetrisGame {
     this.renderTetromino(new Tetromino(withoutOffScreen), new Pos(xOffset, yOffset));
   }
 
+  private renderGameOver(): void {
+
+  }
+
   private initHandlers(): void {
     $(document).ready(() => {
       $(document).keydown((e: KeyboardEvent) => {
         let keyCode: number = e.which || e.keyCode;
         if ($.inArray(keyCode, this._keysPressed) === -1) {
           this._keysPressed.push(keyCode);
-          console.log("Key(s) pressed: " + this._keysPressed.map(Util.toKey));
+          console.log(`Key(s) pressed: ${this._keysPressed.map(Util.toKey)}`);
         }
       });
       $(document).keyup((e: KeyboardEvent) => {
@@ -210,7 +211,7 @@ class TetraTetrisGame {
         if (index !== -1) {
           this._keysPressed.splice(index, 1);
         }
-        console.log("Key released: " + Util.toKey(keyCode));
+        console.log(`Key released: ${Util.toKey(keyCode)}`);
       });
       $("#start-game").click(() => {
         $("#start-game").prop("disabled", true);
@@ -228,12 +229,9 @@ class TetraTetrisGame {
   }
 }
 
-enum Dir {
-  N, W, E, S
-}
-
 class GameState {
-  public static AREA_LEN = 20;
+  public static AREA_LEN: number = 20;
+  private CENTER_POS: Pos = new Pos(10, 10);
   private _landed: number[][];
   private _nextDir: Dir = Dir.N;
   private _currTetromino: Tetromino;
@@ -241,6 +239,7 @@ class GameState {
   private _holdTetromino: Tetromino = null;
   private _switched: boolean = false;
   private _score: number = 0;
+  private _gameOver: boolean = false;
 
   constructor() {
     this.initLandedArr();
@@ -292,78 +291,74 @@ class GameState {
 
   private spawnTetromino(): void {
     this._currTetromino = this._nextTetromino;
-    switch (this._nextDir) {
-      case Dir.N:
-        this._currTetromino.pos = new Pos(8, -4);
-        this._nextDir = Dir.E;
-        break;
-      case Dir.W:
-        this._currTetromino.pos = new Pos(-4, 8);
-        this._nextDir = Dir.N;
-        break;
-      case Dir.E:
-        this._currTetromino.pos = new Pos(19, 8);
-        this._nextDir = Dir.S;
-        break;
-      case Dir.S:
-        this._currTetromino.pos = new Pos(8, 19);
-        this._nextDir = Dir.W;
-        break;
-    }
+    this._currTetromino.setStartPos(this._nextDir);
+    this._nextDir = Util.nextDir(this._nextDir, Rot.CW);
     this.genNextTetromino();
   }
 
-  public processInput(key: string) {
-    // TODO
+  public processInput(key: string): boolean {
+    let curr: Tetromino = this._currTetromino;
+    switch (key) {
+      case "up":
+      case "left":
+      case "right":
+      case "down":
+        let dir: Dir = Util.toDir(key);
+        return this.advanceBlock(dir);
+      default:
+        throw new Error("Input key not implemeneted");
+    }
   }
 
-  public advanceBlock(): boolean {
+  public advanceBlock(dir: Dir): boolean {
     let curr: Tetromino = this._currTetromino;
-    let dir: Dir = GameState.getDir(curr.pos);
     let nextPos: Pos = GameState.translatePos(curr.pos, dir);
-    let canAdvance: boolean = curr.shape.every((row, j) => {
+    if (this.stillInBounds(curr, nextPos)) {
+      if (this.isValidPos(curr, nextPos)) {
+        console.log("Moving block ahead.");
+        curr.pos = nextPos;
+        return true;
+      } else {
+        let success: boolean = this.landTetromino(curr);
+        if (success) {
+          console.log("Tetromino landed.");
+          this._score += 10;
+          this.spawnTetromino();
+          this.clearSquares();
+          return true;
+        } else {
+          console.log("Tetromino landed out of screen.");
+          this._gameOver = true;
+          return false;
+        }
+      }
+    } else {
+      return true;
+    }
+  }
+
+  private stillInBounds(curr: Tetromino, nextPos: Pos) {
+    return curr.shape.some((row, j) => {
+      return row.some((e, i) => {
+        if (e === 0) {
+          return false;
+        }
+        let testPos: Pos = new Pos(i + nextPos.x, j + nextPos.y);
+        return this.inGameArea(testPos);
+      });
+    });
+  }
+
+  private isValidPos(curr: Tetromino, nextPos: Pos) {
+    return curr.shape.every((row, j) => {
       return row.every((e, i) => {
         if (e === 0) {
           return true;
         }
         let testPos: Pos = new Pos(i + nextPos.x, j + nextPos.y);
-        console.log("Checking pos and clear of " + testPos.x + " " + testPos.y);
         return !this.inGameArea(testPos) || this.isClear(testPos);
       });
     });
-    if (canAdvance) {
-      console.log("Moving block ahead.");
-      curr.pos = nextPos;
-      return true;
-    } else {
-      console.log("Tetromino cannot go further; landing.");
-      let success: boolean = this.landTetromino(curr);
-      if (success) {
-        console.log("Tetromino landed.");
-        this.spawnTetromino();
-        this.clearSquares();
-        return true;
-      } else {
-        console.log("Tetromino landed out of screen.");
-        return false;
-      }
-    }
-  }
-
-  private static getDir(pos: Pos): Dir {
-    let x: number = pos.x - 8;
-    let y: number = 8 - pos.y;
-    if (y > Math.abs(x)) {
-      return Dir.S;
-    } else if (y < -Math.abs(x)) {
-      return Dir.N;
-    } else if (y >= x && y <= -x) {
-      return Dir.E;
-    } else if (y >= -x && y <= x) {
-      return Dir.W;
-    } else {
-      throw new Error("Direction unable to be calculated.");
-    }
   }
 
   private static translatePos(pos: Pos, dir: Dir): Pos {
@@ -381,7 +376,6 @@ class GameState {
 
   private inGameArea(pos: Pos): boolean {
     let len: number = this._landed.length;
-    console.log("0" + " <= " + pos.x + ", " + pos.y + " " + len);
     let checkX: boolean = pos.x.between(0, len - 1, true);
     return checkX && pos.y.between(0, len - 1, true);
   }
@@ -432,13 +426,31 @@ class GameState {
   public get holdTetromino(): Tetromino {
     return this._holdTetromino;
   }
+
+  public get gameOver(): boolean {
+    return this._gameOver;
+  }
 }
 
 class Tetromino {
 
   private _pos: Pos;
+  private _minX: number = Number.MAX_VALUE;
+  private _maxX: number = Number.MIN_VALUE;
+  private _minY: number = Number.MAX_VALUE;
+  private _maxY: number = Number.MIN_VALUE;
 
   constructor(private _shape: number[][]) {
+    this._shape.forEach((row, j) => {
+      row.forEach((e, i) => {
+        if (e !== 0) {
+          this._minX = Math.min(this._minX, i);
+          this._maxX = Math.max(this._maxX, i);
+          this._minY = Math.min(this._minY, j);
+          this._maxY = Math.max(this._maxY, j);
+        }
+      })
+    })
   }
 
   public get shape(): number[][] {
@@ -451,6 +463,30 @@ class Tetromino {
 
   public set pos(pos: Pos) {
     this._pos = pos;
+  }
+
+  public setStartPos(dir: Dir): Pos {
+    switch (dir) {
+      case Dir.N:
+        this._pos = new Pos(8, 0 - this._maxY);
+        break;
+      case Dir.W:
+        this._pos = new Pos(0 - this._maxX, 8);
+        break;
+      case Dir.E:
+        this._pos = new Pos(19 - this._minX, 8);
+        break;
+      case Dir.S:
+        this._pos = new Pos(8, 19 - this._minY);
+        break;
+      default:
+        throw new Error("Direction not recognized.");
+    }
+    return this._pos;
+  }
+
+  public getMidPos(): Pos {
+    return new Pos(this._pos.x + 2, this.pos.y + 2);
   }
 }
 
@@ -511,16 +547,46 @@ class Util {
 
   public static COLOURS: string[] = [null, "violet", "red", "orange", "yellow", "green", "cyan", "purple", "lightgrey"];
 
+  public static toDir(dir: string) {
+    switch (dir) {
+      case "up":
+        return Dir.N;
+      case "left":
+        return Dir.W;
+      case "right":
+        return Dir.E;
+      case "down":
+        return Dir.S;
+      default:
+        throw new Error("Direction invalid.");
+    }
+  }
+
+  public static nextDir(dir: Dir, rot: Rot) {
+    switch (dir) {
+      case Dir.N:
+        return (rot === Rot.CW) ? Dir.E : Dir.W;
+      case Dir.E:
+        return (rot === Rot.CW) ? Dir.S : Dir.N;
+      case Dir.S:
+        return (rot === Rot.CW) ? Dir.W : Dir.E;
+      case Dir.W:
+        return (rot === Rot.CW) ? Dir.N : Dir.S;
+      default:
+        throw new Error("Direction invalid.");
+    }
+  }
+
   public static toKey(keyCode: number): string {
     switch (keyCode) {
       case 37:
-        return "left arrow";
+        return "left";
       case 38:
-        return "up arrow";
+        return "up";
       case 39:
-        return "right arrow";
+        return "right";
       case 40:
-        return "down arrow";
+        return "down";
       case 80:
         return "p";
       case 32:
@@ -532,9 +598,17 @@ class Util {
       case 16:
         return "shift";
       default:
-        return "unknown";
+        return String.fromCharCode(keyCode).toLowerCase();
     }
   }
+}
+
+const enum Dir {
+  N, W, E, S
+}
+
+const enum Rot {
+  CW, CCW
 }
 
 class Pos {
