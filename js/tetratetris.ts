@@ -31,9 +31,9 @@ class TetraTetrisGame {
 
   public startGameLoop(): void {
     this.updateTimerID = this.updateTimerID ||
-      setInterval(this.update.bind(this), 1000 / this.TPS);
+        setInterval(this.update.bind(this), 1000 / this.TPS);
     this.renderTimerID = this.renderTimerID ||
-      setInterval(this.render.bind(this), 1000 / this.FPS);
+        setInterval(this.render.bind(this), 1000 / this.FPS);
   }
 
   public haltGameLoop(): void {
@@ -63,7 +63,7 @@ class TetraTetrisGame {
 
   private update(): void {
     let stillAlive: boolean = this._keysPressed
-      .every((key: string) => this.state.processInput(key));
+        .every((key: string) => this.state.processInput(key));
     if (!stillAlive) {
       console.log("Game over!");
       $("#pause-game").prop("disabled", true);
@@ -770,7 +770,7 @@ class Util {
     }
   }
 
-  public static prevDir (dir: Dir, rot: Rot): Dir {
+  public static prevDir(dir: Dir, rot: Rot): Dir {
     switch (dir) {
       case Dir.N:
         return (rot === Rot.CW) ? Dir.E : Dir.W;
