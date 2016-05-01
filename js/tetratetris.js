@@ -2,26 +2,29 @@
 var __extends = (this && this.__extends) || function (d, b) {
     for (var p in b) if (b.hasOwnProperty(p)) d[p] = b[p];
     function __() { this.constructor = d; }
-    __.prototype = b.prototype;
-    d.prototype = new __();
+    d.prototype = b === null ? Object.create(b) : (__.prototype = b.prototype, new __());
 };
 var TetraTetrisGame = (function () {
     function TetraTetrisGame() {
+        this.BLOCK_SIZE = 25;
         this.FPS = 30;
         this.INPUT_RATE = 5;
-        this.BLOCK_RATE = 1;
+        this.prevInputTime = Date.now();
+        this.BLOCK_RATE = 2;
+        this.prevBlockTime = Date.now();
         this.gameLoopTimerID = null;
         this.state = new GameState();
-        this.mainViewOffset = [50, 50];
-        this.nextBlockOffset = [600, 50];
-        this.holdQueueOffset = [600, 250];
-        this.gameCanvas = document.getElementById("game-canvas");
+        this.mainViewOffset = new Pos(50, 50);
+        this.nextBlockOffset = new Pos(600, 50);
+        this.holdQueueOffset = new Pos(600, 250);
+        this._keysPressed = [];
+        this._gameCanvas = document.getElementById("game-canvas");
         this.BG_IMG = new Image();
         this.BG_IMG.src = "images/tetris-bg.jpg";
-        this.WIDTH = this.gameCanvas.width;
-        this.HEIGHT = this.gameCanvas.height;
-        this.ctx = this.gameCanvas.getContext("2d");
-        UserInput.getInstance().initHandlers(this);
+        this.WIDTH = this._gameCanvas.width;
+        this.HEIGHT = this._gameCanvas.height;
+        this.ctx = this._gameCanvas.getContext("2d");
+        this.initHandlers();
         this.render();
     }
     TetraTetrisGame.prototype.startGameLoop = function () {
@@ -33,7 +36,7 @@ var TetraTetrisGame = (function () {
         }, 1000 / this.FPS);
     };
     TetraTetrisGame.prototype.togglePause = function () {
-        if (this.gameLoopTimerID === null) {
+        if (this.gameLoopTimerID == null) {
             console.log("Resuming game.");
             this.startGameLoop();
         }
@@ -48,7 +51,22 @@ var TetraTetrisGame = (function () {
         clearInterval(this.gameLoopTimerID);
     };
     TetraTetrisGame.prototype.update = function () {
-        console.log("updating");
+        var _this = this;
+        if (Date.now() - this.prevInputTime > 1000 / this.INPUT_RATE) {
+            this._keysPressed
+                .map(function (k) { return Util.toKey(k); })
+                .forEach(function (key) { return _this.state.processInput(key); });
+            this.prevInputTime = Date.now();
+        }
+        if (Date.now() - this.prevBlockTime > 1000 / this.BLOCK_RATE) {
+            console.log("move block");
+            var stillAlive = this.state.advanceBlock();
+            if (!stillAlive) {
+                // TODO: Game over
+                clearInterval(this.gameLoopTimerID);
+            }
+            this.prevBlockTime = Date.now();
+        }
     };
     TetraTetrisGame.prototype.render = function () {
         this.renderHUD();
@@ -63,9 +81,9 @@ var TetraTetrisGame = (function () {
         ctx.fillRect(0, 0, this.WIDTH, this.HEIGHT);
         ctx.globalAlpha = 0.8;
         ctx.fillStyle = "black";
-        ctx.fillRect(this.mainViewOffset[0], this.mainViewOffset[1], 500, 500);
-        ctx.fillRect(this.nextBlockOffset[0], this.nextBlockOffset[1], 150, 150);
-        ctx.fillRect(this.holdQueueOffset[0], this.holdQueueOffset[1], 150, 150);
+        ctx.fillRect(this.mainViewOffset.x, this.mainViewOffset.y, 500, 500);
+        ctx.fillRect(this.nextBlockOffset.x, this.nextBlockOffset.y, 150, 150);
+        ctx.fillRect(this.holdQueueOffset.x, this.holdQueueOffset.y, 150, 150);
         ctx.fillStyle = "lightgrey";
         ctx.fillRect(600, 450, 150, 100);
         ctx.strokeStyle = "black";
@@ -83,37 +101,38 @@ var TetraTetrisGame = (function () {
     TetraTetrisGame.prototype.renderGameState = function () {
         this.renderNext();
         this.renderHold();
-        this.renderScore();
         this.renderBlocks();
+        this.renderCurrent();
+        this.renderScore();
     };
     TetraTetrisGame.prototype.renderNext = function () {
         var tetromino = this.state.nextTetromino;
         if (tetromino != null) {
-            var x = this.nextBlockOffset[0] + 25;
-            var y = this.nextBlockOffset[1] + 45;
-            this.renderTetromino(tetromino, [x, y]);
+            var x = this.nextBlockOffset.x + 25;
+            var y = this.nextBlockOffset.y + 45;
+            this.renderTetromino(tetromino, new Pos(x, y));
         }
     };
     TetraTetrisGame.prototype.renderHold = function () {
         var tetromino = this.state.holdTetromino;
         if (tetromino != null) {
-            var x = this.holdQueueOffset[0] + 25;
-            var y = this.holdQueueOffset[1] + 45;
-            this.renderTetromino(tetromino, [x, y]);
+            var x = this.holdQueueOffset.x + 25;
+            var y = this.holdQueueOffset.y + 45;
+            this.renderTetromino(tetromino, new Pos(x, y));
         }
     };
     TetraTetrisGame.prototype.renderTetromino = function (tetromino, offset) {
+        var _this = this;
         var ctx = this.ctx;
-        var BLOCK_SIZE = 25;
         ctx.save();
-        tetromino.shape.forEach(function (row, i) {
-            row.forEach(function (e, j) {
-                if (e != 0) {
-                    var x = j * BLOCK_SIZE + offset[0];
-                    var y = i * BLOCK_SIZE + offset[1];
+        tetromino.shape.forEach(function (row, j) {
+            row.forEach(function (e, i) {
+                if (e !== 0) {
+                    var x = i * _this.BLOCK_SIZE + offset.x;
+                    var y = j * _this.BLOCK_SIZE + offset.y;
                     ctx.fillStyle = Util.COLOURS[e];
-                    ctx.fillRect(x, y, BLOCK_SIZE, BLOCK_SIZE);
-                    ctx.strokeRect(x, y, BLOCK_SIZE, BLOCK_SIZE);
+                    ctx.fillRect(x, y, _this.BLOCK_SIZE, _this.BLOCK_SIZE);
+                    ctx.strokeRect(x, y, _this.BLOCK_SIZE, _this.BLOCK_SIZE);
                 }
             });
         });
@@ -133,46 +152,40 @@ var TetraTetrisGame = (function () {
         var offset = this.mainViewOffset;
         var BLOCK_SIZE = 25;
         ctx.save();
-        for (var i = 0; i < GameState.AREA_LEN; i++) {
-            for (var j = 0; j < GameState.AREA_LEN; j++) {
-                if (landed[i][j] >= 1 && landed[i][j] <= 8) {
-                    var x = j * BLOCK_SIZE + offset[0];
-                    var y = i * BLOCK_SIZE + offset[1];
-                    ctx.fillStyle = Util.COLOURS[landed[i][j]];
+        landed.forEach(function (row, j) {
+            row.forEach(function (e, i) {
+                if (e !== 0) {
+                    var x = i * BLOCK_SIZE + offset.x;
+                    var y = j * BLOCK_SIZE + offset.y;
+                    ctx.fillStyle = Util.COLOURS[e];
                     ctx.fillRect(x, y, BLOCK_SIZE, BLOCK_SIZE);
                     ctx.strokeRect(x, y, BLOCK_SIZE, BLOCK_SIZE);
                 }
-            }
-        }
+            });
+        });
         ctx.restore();
     };
-    return TetraTetrisGame;
-})();
-var UserInput = (function () {
-    function UserInput() {
-        this.keysPressed = new Array();
-    }
-    UserInput.getInstance = function () {
-        if (this.instance === null) {
-            this.instance = new UserInput();
-        }
-        return this.instance;
+    TetraTetrisGame.prototype.renderCurrent = function () {
+        var curr = this.state.currTetromino;
+        var xOffset = curr.pos.x * this.BLOCK_SIZE + this.mainViewOffset.x;
+        var yOffset = curr.pos.y * this.BLOCK_SIZE + this.mainViewOffset.y;
+        this.renderTetromino(curr, new Pos(xOffset, yOffset));
     };
-    UserInput.prototype.initHandlers = function (game) {
+    TetraTetrisGame.prototype.initHandlers = function () {
         var _this = this;
         $(document).ready(function () {
             $(document).keydown(function (e) {
                 var keyCode = e.which || e.keyCode;
-                if ($.inArray(keyCode, _this.keysPressed) === -1) {
-                    _this.keysPressed.push(keyCode);
-                    console.log("Key(s) pressed: " + _this.keysPressed.map(Util.toKey));
+                if ($.inArray(keyCode, _this._keysPressed) === -1) {
+                    _this._keysPressed.push(keyCode);
+                    console.log("Key(s) pressed: " + _this._keysPressed.map(Util.toKey));
                 }
             });
             $(document).keyup(function (e) {
                 var keyCode = e.which || e.keyCode;
-                var index = _this.keysPressed.indexOf(keyCode);
-                if (index != -1) {
-                    _this.keysPressed.splice(index, 1);
+                var index = _this._keysPressed.indexOf(keyCode);
+                if (index !== -1) {
+                    _this._keysPressed.splice(index, 1);
                 }
                 console.log("Key released: " + Util.toKey(keyCode));
             });
@@ -189,8 +202,8 @@ var UserInput = (function () {
             });
         });
     };
-    return UserInput;
-})();
+    return TetraTetrisGame;
+}());
 var Dir;
 (function (Dir) {
     Dir[Dir["N"] = 0] = "N";
@@ -252,41 +265,125 @@ var GameState = (function () {
         this._currTetromino = this._nextTetromino;
         switch (this._nextDir) {
             case Dir.N:
-                this._currTetromino.pos = [8, -4];
+                this._currTetromino.pos = new Pos(8, -4);
                 this._nextDir = Dir.E;
                 break;
             case Dir.W:
-                this._currTetromino.pos = [-4, 8];
+                this._currTetromino.pos = new Pos(-4, 8);
                 this._nextDir = Dir.N;
                 break;
             case Dir.E:
-                this._currTetromino.pos = [19, 8];
+                this._currTetromino.pos = new Pos(19, 8);
                 this._nextDir = Dir.S;
                 break;
             case Dir.S:
-                this.currTetromino.pos = [8, 19];
+                this._currTetromino.pos = new Pos(8, 19);
                 this._nextDir = Dir.W;
                 break;
         }
         this.genNextTetromino();
     };
-    GameState.prototype.getInput = function (key) {
+    GameState.prototype.processInput = function (key) {
         // TODO
     };
     GameState.prototype.advanceBlock = function () {
+        var _this = this;
         var curr = this._currTetromino;
-        var dir = this.getDir(curr.pos);
-        curr.shape.map(function (row) { return row.filter(function (v) { return v != 0; }); });
-        return false;
+        var dir = GameState.getDir(curr.pos);
+        var nextPos = GameState.translatePos(curr.pos, dir);
+        var canAdvance = curr.shape.every(function (row, j) {
+            return row.every(function (e, i) {
+                if (e === 0) {
+                    return true;
+                }
+                var testPos = new Pos(i + nextPos.x, j + nextPos.y);
+                console.log("Checking pos and clear of " + testPos.x + " " + testPos.y);
+                return !_this.inGameArea(testPos) || _this.isClear(testPos);
+            });
+        });
+        if (canAdvance) {
+            console.log("Moving block ahead.");
+            curr.pos = nextPos;
+            return true;
+        }
+        else {
+            console.log("Tetromino cannot go further; landing.");
+            var success = this.landTetromino(curr);
+            if (success) {
+                console.log("Tetromino landed.");
+                this.spawnTetromino();
+                this.clearSquares();
+                return true;
+            }
+            else {
+                console.log("Tetromino landed out of screen.");
+                return false;
+            }
+        }
     };
-    GameState.prototype.getDir = function (position) {
-        var dx = position[0] - 8;
-        var dy = position[1] - 8;
-        if (dy >= dx && dy >= -dx) {
+    GameState.getDir = function (pos) {
+        var x = pos.x - 8;
+        var y = 8 - pos.y;
+        if (y > Math.abs(x)) {
             return Dir.S;
         }
-        else if (dy) {
+        else if (y < -Math.abs(x)) {
+            return Dir.N;
         }
+        else if (y >= x && y <= -x) {
+            return Dir.E;
+        }
+        else if (y >= -x && y <= x) {
+            return Dir.W;
+        }
+        else {
+            throw new Error("Direction unable to be calculated.");
+        }
+    };
+    GameState.translatePos = function (pos, dir) {
+        switch (dir) {
+            case Dir.N:
+                return new Pos(pos.x, pos.y - 1);
+            case Dir.W:
+                return new Pos(pos.x - 1, pos.y);
+            case Dir.E:
+                return new Pos(pos.x + 1, pos.y);
+            case Dir.S:
+                return new Pos(pos.x, pos.y + 1);
+        }
+    };
+    GameState.prototype.inGameArea = function (pos) {
+        var len = this._landed.length;
+        console.log("0" + " <= " + pos.x + ", " + pos.y + " " + len);
+        var checkX = pos.x.between(0, len - 1, true);
+        return checkX && pos.y.between(0, len - 1, true);
+    };
+    GameState.prototype.isClear = function (pos) {
+        return this.landed[pos.y][pos.x] === 0;
+    };
+    GameState.prototype.landTetromino = function (tetromino) {
+        var _this = this;
+        var pos = tetromino.pos;
+        return tetromino.shape.every(function (row, j) {
+            return row.every(function (e, i) {
+                if (e === 0) {
+                    return true;
+                }
+                else {
+                    var blockPos = new Pos(i + pos.x, j + pos.y);
+                    if (_this.inGameArea(blockPos) && _this.isClear(blockPos)) {
+                        _this.landed[blockPos.y][blockPos.x] = e;
+                        return true;
+                    }
+                    else {
+                        return false;
+                    }
+                }
+            });
+        });
+    };
+    GameState.prototype.clearSquares = function () {
+        // TODO
     };
     Object.defineProperty(GameState.prototype, "score", {
         get: function () {
@@ -325,7 +422,7 @@ var GameState = (function () {
     });
     GameState.AREA_LEN = 20;
     return GameState;
-})();
+}());
 var Tetromino = (function () {
     function Tetromino(_shape) {
         this._shape = _shape;
@@ -348,91 +445,63 @@ var Tetromino = (function () {
         configurable: true
     });
     return Tetromino;
-})();
+}());
 var ITetromino = (function (_super) {
     __extends(ITetromino, _super);
     function ITetromino() {
         var x = 1;
-        _super.call(this, [
-            [0, 0, 0, 0],
-            [x, x, x, x],
-            [0, 0, 0, 0],
-            [0, 0, 0, 0]]);
+        _super.call(this, [[0, 0, 0, 0], [x, x, x, x], [0, 0, 0, 0], [0, 0, 0, 0]]);
     }
     return ITetromino;
-})(Tetromino);
+}(Tetromino));
 var JTetromino = (function (_super) {
     __extends(JTetromino, _super);
     function JTetromino() {
         var x = 2;
-        _super.call(this, [
-            [0, 0, x, 0],
-            [0, 0, x, 0],
-            [0, x, x, 0],
-            [0, 0, 0, 0]]);
+        _super.call(this, [[0, 0, x, 0], [0, 0, x, 0], [0, x, x, 0], [0, 0, 0, 0]]);
     }
     return JTetromino;
-})(Tetromino);
+}(Tetromino));
 var LTetromino = (function (_super) {
     __extends(LTetromino, _super);
     function LTetromino() {
         var x = 3;
-        _super.call(this, [
-            [0, x, 0, 0],
-            [0, x, 0, 0],
-            [0, x, x, 0],
-            [0, 0, 0, 0]]);
+        _super.call(this, [[0, x, 0, 0], [0, x, 0, 0], [0, x, x, 0], [0, 0, 0, 0]]);
     }
     return LTetromino;
-})(Tetromino);
+}(Tetromino));
 var ZTetromino = (function (_super) {
     __extends(ZTetromino, _super);
     function ZTetromino() {
         var x = 4;
-        _super.call(this, [
-            [0, 0, 0, 0],
-            [x, x, 0, 0],
-            [0, x, x, 0],
-            [0, 0, 0, 0]]);
+        _super.call(this, [[0, 0, 0, 0], [x, x, 0, 0], [0, x, x, 0], [0, 0, 0, 0]]);
     }
     return ZTetromino;
-})(Tetromino);
+}(Tetromino));
 var STetromino = (function (_super) {
     __extends(STetromino, _super);
     function STetromino() {
         var x = 5;
-        _super.call(this, [
-            [0, 0, 0, 0],
-            [0, 0, x, x],
-            [0, x, x, 0],
-            [0, 0, 0, 0]]);
+        _super.call(this, [[0, 0, 0, 0], [0, 0, x, x], [0, x, x, 0], [0, 0, 0, 0]]);
     }
     return STetromino;
-})(Tetromino);
+}(Tetromino));
 var OTetromino = (function (_super) {
     __extends(OTetromino, _super);
     function OTetromino() {
         var x = 6;
-        _super.call(this, [
-            [0, 0, 0, 0],
-            [0, x, x, 0],
-            [0, x, x, 0],
-            [0, 0, 0, 0]]);
+        _super.call(this, [[0, 0, 0, 0], [0, x, x, 0], [0, x, x, 0], [0, 0, 0, 0]]);
     }
     return OTetromino;
-})(Tetromino);
+}(Tetromino));
 var TTetromino = (function (_super) {
     __extends(TTetromino, _super);
     function TTetromino() {
         var x = 7;
-        _super.call(this, [
-            [0, 0, 0, 0],
-            [0, x, 0, 0],
-            [x, x, x, 0],
-            [0, 0, 0, 0]]);
+        _super.call(this, [[0, 0, 0, 0], [0, x, 0, 0], [x, x, x, 0], [0, 0, 0, 0]]);
     }
     return TTetromino;
-})(Tetromino);
+}(Tetromino));
 var Util = (function () {
     function Util() {
         throw new Error("Cannot instantiate Util class");
@@ -461,18 +530,37 @@ var Util = (function () {
                 return "unknown";
         }
     };
-    Util.COLOURS = [
-        null,
-        "violet",
-        "red",
-        "orange",
-        "yellow",
-        "green",
-        "cyan",
-        "purple",
-        "lightgrey"
-    ];
+    Util.COLOURS = [null, "violet", "red", "orange", "yellow", "green", "cyan", "purple", "lightgrey"];
     return Util;
-})();
+}());
+var Pos = (function () {
+    function Pos(_x, _y) {
+        this._x = _x;
+        this._y = _y;
+    }
+    Object.defineProperty(Pos.prototype, "x", {
+        get: function () {
+            return this._x;
+        },
+        enumerable: true,
+        configurable: true
+    });
+    Object.defineProperty(Pos.prototype, "y", {
+        get: function () {
+            return this._y;
+        },
+        enumerable: true,
+        configurable: true
+    });
+    Pos.prototype.toTuple = function () {
+        return [this._x, this._y];
+    };
+    return Pos;
+}());
+Number.prototype.between = function (a, b, inc) {
+    var min = Math.min(a, b);
+    var max = Math.max(a, b);
+    return inc ? min <= this && this <= max : min < this && this < max;
+};
 var game = new TetraTetrisGame();
 //# sourceMappingURL=tetratetris.js.map
