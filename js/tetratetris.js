@@ -10,7 +10,7 @@ var TetraTetrisGame = (function () {
         this.FPS = 30;
         this.INPUT_RATE = 5;
         this.prevInputTime = Date.now();
-        this.BLOCK_RATE = 2;
+        this.BLOCK_RATE = 10;
         this.prevBlockTime = Date.now();
         this.gameLoopTimerID = null;
         this.state = new GameState();
@@ -49,6 +49,9 @@ var TetraTetrisGame = (function () {
     TetraTetrisGame.prototype.reset = function () {
         console.log("Resetting game...");
         clearInterval(this.gameLoopTimerID);
+        this.gameLoopTimerID = null;
+        this.state = new GameState();
+        this.render();
     };
     TetraTetrisGame.prototype.update = function () {
         var _this = this;
@@ -61,11 +64,13 @@ var TetraTetrisGame = (function () {
         if (Date.now() - this.prevBlockTime > 1000 / this.BLOCK_RATE) {
             console.log("move block");
             var stillAlive = this.state.advanceBlock();
-            if (!stillAlive) {
-                // TODO: Game over
+            if (stillAlive) {
+                this.prevBlockTime = Date.now();
+            }
+            else {
+                $("#pause-game").prop("disabled", true);
                 clearInterval(this.gameLoopTimerID);
             }
-            this.prevBlockTime = Date.now();
         }
     };
     TetraTetrisGame.prototype.render = function () {
@@ -169,7 +174,14 @@ var TetraTetrisGame = (function () {
         var curr = this.state.currTetromino;
         var xOffset = curr.pos.x * this.BLOCK_SIZE + this.mainViewOffset.x;
         var yOffset = curr.pos.y * this.BLOCK_SIZE + this.mainViewOffset.y;
-        this.renderTetromino(curr, new Pos(xOffset, yOffset));
+        var withoutOffScreen = curr.shape.map(function (row, j) {
+            return row.map(function (e, i) {
+                var x = i + curr.pos.x;
+                var y = j + curr.pos.y;
+                return (x.between(0, 19, true) && y.between(0, 19, true)) ? e : 0;
+            });
+        });
+        this.renderTetromino(new Tetromino(withoutOffScreen), new Pos(xOffset, yOffset));
     };
     TetraTetrisGame.prototype.initHandlers = function () {
         var _this = this;
@@ -198,6 +210,7 @@ var TetraTetrisGame = (function () {
                 game.togglePause();
             });
             $("#reset-game").click(function () {
+                $("#start-game").prop("disabled", false);
                 game.reset();
             });
         });

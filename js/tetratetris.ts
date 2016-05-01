@@ -11,7 +11,7 @@ class TetraTetrisGame {
   private FPS: number = 30;
   private INPUT_RATE: number = 5;
   private prevInputTime: number = Date.now();
-  private BLOCK_RATE: number = 2;
+  private BLOCK_RATE: number = 10;
   private prevBlockTime: number = Date.now();
   private gameLoopTimerID: number = null;
   private state: GameState = new GameState();
@@ -53,6 +53,9 @@ class TetraTetrisGame {
   public reset(): void {
     console.log("Resetting game...");
     clearInterval(this.gameLoopTimerID);
+    this.gameLoopTimerID = null;
+    this.state = new GameState();
+    this.render();
   }
 
   private update(): void {
@@ -65,11 +68,12 @@ class TetraTetrisGame {
     if (Date.now() - this.prevBlockTime > 1000 / this.BLOCK_RATE) {
       console.log("move block");
       let stillAlive: boolean = this.state.advanceBlock();
-      if (!stillAlive) {
-        // TODO: Game over
+      if (stillAlive) {
+        this.prevBlockTime = Date.now();
+      } else {
+        $("#pause-game").prop("disabled", true);
         clearInterval(this.gameLoopTimerID);
       }
-      this.prevBlockTime = Date.now();
     }
   }
 
@@ -181,7 +185,14 @@ class TetraTetrisGame {
     let curr: Tetromino = this.state.currTetromino;
     let xOffset = curr.pos.x * this.BLOCK_SIZE + this.mainViewOffset.x;
     let yOffset = curr.pos.y * this.BLOCK_SIZE + this.mainViewOffset.y;
-    this.renderTetromino(curr, new Pos(xOffset, yOffset));
+    let withoutOffScreen = curr.shape.map((row: number[], j: number): number[] => {
+      return row.map((e: number, i: number): number => {
+        let x = i + curr.pos.x;
+        let y = j + curr.pos.y;
+        return (x.between(0, 19, true) && y.between(0, 19, true)) ? e : 0;
+      });
+    });
+    this.renderTetromino(new Tetromino(withoutOffScreen), new Pos(xOffset, yOffset));
   }
 
   private initHandlers(): void {
@@ -210,6 +221,7 @@ class TetraTetrisGame {
         game.togglePause();
       });
       $("#reset-game").click(() => {
+        $("#start-game").prop("disabled", false);
         game.reset();
       });
     });
@@ -343,7 +355,7 @@ class GameState {
     let y: number = 8 - pos.y;
     if (y > Math.abs(x)) {
       return Dir.S;
-    }else if (y < -Math.abs(x)) {
+    } else if (y < -Math.abs(x)) {
       return Dir.N;
     } else if (y >= x && y <= -x) {
       return Dir.E;
