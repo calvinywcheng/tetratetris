@@ -10,6 +10,8 @@
         href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.6/css/bootstrap.min.css"
         integrity="sha384-1q8mTJOASx8j1Au+a5WDVnPi2lkFfwwEAa8hDDdjZlpLegxhjVME1fgjWPGmkzs7"
         crossorigin="anonymous">
+  <link rel="stylesheet"
+        href="https://maxcdn.bootstrapcdn.com/font-awesome/4.6.1/css/font-awesome.min.css">
   <link rel="stylesheet" type="text/css" href="css/stylesheet.css">
   <link rel="shortcut icon" href="favicons/favicon.ico">
   <link rel="icon" sizes="16x16 32x32 64x64" href="favicons/favicon.ico">
@@ -41,7 +43,9 @@
 <body>
 <div class="container">
   <div class="page-header">
-    <h1 class="text-center">TetraTetris <small>v1.0.0</small><br>
+    <h1 class="text-center">TetraTetris
+      <small>v1.0.0</small>
+      <br>
       <small>A variant of the classic block-building game</small>
     </h1>
   </div>
@@ -65,25 +69,18 @@
     </div>
     <div class="col-md-4">
       <div class="panel panel-primary">
-        <div class="panel-heading">
-          <h3 class="panel-title">
-            Instructions </h3>
-        </div>
         <div class="panel-body">
-          <h4>Objective</h4>
+          <h4><span class="glyphicon glyphicon-flag"></span> Objective</h4>
           <p>The classic game of Tetris is quite one-dimensional; blocks only
             come from the top and keep falling downwards. Like many things in
             life, however, it's often nice to add a different perspective. </p>
-          <p>In this game, blocks will be spawned* from all four sides of the
+          <p>In this game, blocks will be spawned from all four sides of the
             screen, and your objective is to fill in rows from all four sides. A
-            line will be "cleared" when all four sides have been filled. The
-            more lines you clear, the higher your score!</p>
-          <p>
-            <small>* The blocks don't naturally fall, as that would just make
-              the controls too awkward.
-            </small>
-          </p>
-          <h4>Controls</h4>
+            square will be cleared when all four sides have been filled at a
+            certain height. The more squares you clear, the higher your
+            score!</p>
+          <p></p>
+          <h4><span class="fa fa-keyboard-o"></span> Controls</h4>
           <ul class="list-group">
             <li class="list-group-item"><strong>Arrow keys</strong> to move
             </li>
@@ -94,6 +91,14 @@
               counterclockwise
             </li>
             <li class="list-group-item"><strong>Shift</strong> to hold tetromino
+            </li>
+          </ul>
+          <h4><span class="glyphicon glyphicon-screenshot"></span> Scoring</h4>
+          <ul class="list-unstyled">
+            <li><strong>10 points</strong> for each block successfully placed
+            </li>
+            <li><strong>100 × 2<sup>x</sup> points</strong> for clearing
+              <var>x</var> squares at once
             </li>
           </ul>
         </div>
@@ -115,6 +120,9 @@
     src="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.6/js/bootstrap.min.js"
     integrity="sha384-0mSbJDEHialfmuBBQP6A4Qrprq5OVfW37PRR3j5ELqxss1yVqOtnepnHVP9aJ7xS"
     crossorigin="anonymous"></script>
+<script src="https://cdn.jsdelivr.net/lodash/4.11.2/lodash.min.js"
+        integrity="sha256-nflPss62W9FyMSB8FWLhN/wZdm+IeJD6a8KPvaEvN1o="
+        crossorigin="anonymous"></script>
 <script src="js/tetratetris.js"></script>
 </body>
 </html>

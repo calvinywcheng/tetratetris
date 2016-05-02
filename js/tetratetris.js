@@ -1,4 +1,5 @@
 /// <reference path="jquery.d.ts" />
+/// <reference path="lodash.d.ts" />
 var __extends = (this && this.__extends) || function (d, b) {
     for (var p in b) if (b.hasOwnProperty(p)) d[p] = b[p];
     function __() { this.constructor = d; }
@@ -337,8 +338,8 @@ var GameState = (function () {
                 if (success) {
                     console.log("Tetromino landed.");
                     this._score += 10;
-                    this.spawnTetromino();
                     this.clearSquares();
+                    this.spawnTetromino();
                     return true;
                 }
                 else {
@@ -380,10 +381,18 @@ var GameState = (function () {
         switch (dir) {
             case Dir.N:
                 return new Pos(pos.x, pos.y - 1);
+            case Dir.NW:
+                return new Pos(pos.x - 1, pos.y - 1);
             case Dir.W:
                 return new Pos(pos.x - 1, pos.y);
+            case Dir.NE:
+                return new Pos(pos.x + 1, pos.y - 1);
             case Dir.E:
                 return new Pos(pos.x + 1, pos.y);
+            case Dir.SE:
+                return new Pos(pos.x + 1, pos.y + 1);
+            case Dir.SW:
+                return new Pos(pos.x - 1, pos.y + 1);
             case Dir.S:
                 return new Pos(pos.x, pos.y + 1);
         }
@@ -418,7 +427,81 @@ var GameState = (function () {
         });
     };
     GameState.prototype.clearSquares = function () {
-        // TODO
+        var _this = this;
+        var CLEAR_BASE_POINTS = 100;
+        var getSquare = function (dist) {
+            var square = {};
+            var getRow = function (start, end, dir) {
+                var next = GameState.translatePos;
+                var row = [];
+                for (var pos = next(start, dir); !_.isEqual(pos, end); pos = next(pos, dir)) {
+                    row.push(pos);
+                }
+                return row;
+            };
+            square["NW"] = [new Pos(dist, dist)];
+            square["NE"] = [new Pos(19 - dist, dist)];
+            square["SW"] = [new Pos(dist, 19 - dist)];
+            square["SE"] = [new Pos(19 - dist, 19 - dist)];
+            square["N"] = getRow(square["NW"][0], square["NE"][0], Dir.E);
+            square["W"] = getRow(square["NW"][0], square["SW"][0], Dir.S);
+            square["E"] = getRow(square["NE"][0], square["SE"][0], Dir.S);
+            square["S"] = getRow(square["SW"][0], square["SE"][0], Dir.E);
+            return square;
+        };
+        var counter = 0;
+        var _loop_1 = function(distFromEdge) {
+            var square = getSquare(distFromEdge);
+            console.log(square);
+            var complete = _.flatten(_.valuesIn(square)).every(function (e) {
+                return !_this.isClear(e);
+            });
+            if (complete) {
+                var recMove_1 = function (dst, moveDir) {
+                    var src = GameState.translatePos(dst, Util.reverseDir(moveDir));
+                    if (_this.inGameArea(src)) {
+                        _this._landed[dst.y][dst.x] = _this._landed[src.y][src.x];
+                        recMove_1(src, moveDir);
+                    }
+                    else {
+                        _this._landed[dst.y][dst.x] = 0;
+                    }
+                };
+                var moveCorner = function (dst, moveDir) {
+                    var dirs = [
+                        Util.reverseDir((moveDir + 45).mod(360)),
+                        Util.reverseDir((moveDir - 45).mod(360))
+                    ];
+                    for (var _i = 0, dirs_1 = dirs; _i < dirs_1.length; _i++) {
+                        var dir = dirs_1[_i];
+                        for (var pos = GameState.translatePos(dst, dir); pos.x.between(1, 18, true) && pos.y.between(1, 18, true); pos = GameState.translatePos(pos, dir)) {
+                            recMove_1(pos, moveDir);
+                        }
+                    }
+                    recMove_1(dst, Util.reverseDir(moveDir));
+                };
+                square["N"].forEach(function (p) { return recMove_1(p, Dir.S); });
+                square["W"].forEach(function (p) { return recMove_1(p, Dir.E); });
+                square["E"].forEach(function (p) { return recMove_1(p, Dir.W); });
+                square["S"].forEach(function (p) { return recMove_1(p, Dir.N); });
+                moveCorner(square["NW"][0], Dir.SE);
+                moveCorner(square["NE"][0], Dir.SW);
+                moveCorner(square["SW"][0], Dir.NE);
+                moveCorner(square["SE"][0], Dir.NW);
+                counter++;
+                distFromEdge = 1;
+            }
+            out_distFromEdge_1 = distFromEdge;
+        };
+        var out_distFromEdge_1;
+        for (var distFromEdge = 1; distFromEdge <= 8; distFromEdge++) {
+            _loop_1(distFromEdge);
+            distFromEdge = out_distFromEdge_1;
+        }
+        if (counter > 0) {
+            this._score += CLEAR_BASE_POINTS << counter;
+        }
+        console.log("Done checking for cleared squares");
     };
     GameState.prototype.rotateBlock = function (rot) {
         if (Date.now() - this._lastRotateTime > GameState.ROTATE_DELAY) {
@@ -477,7 +560,7 @@ var GameState = (function () {
         configurable: true
     });
     GameState.AREA_LEN = 20;
-    GameState.ROTATE_DELAY = 100;
+    GameState.ROTATE_DELAY = 200;
     return GameState;
 }());
 var Tetromino = (function () {
@@ -784,6 +867,9 @@ var Util = (function () {
                 throw new Error("Direction invalid.");
         }
     };
+    Util.reverseDir = function (dir) {
+        return (dir + 180) % 360;
+    };
     Util.toKey = function (keyCode) {
         switch (keyCode) {
             case 37:
@@ -810,9 +896,13 @@ var Util = (function () {
 var Dir;
 (function (Dir) {
     Dir[Dir["N"] = 0] = "N";
-    Dir[Dir["W"] = 270] = "W";
+    Dir[Dir["NE"] = 45] = "NE";
     Dir[Dir["E"] = 90] = "E";
+    Dir[Dir["SE"] = 135] = "SE";
     Dir[Dir["S"] = 180] = "S";
+    Dir[Dir["SW"] = 225] = "SW";
+    Dir[Dir["W"] = 270] = "W";
+    Dir[Dir["NW"] = 315] = "NW";
 })(Dir || (Dir = {}));
 var Rot;
 (function (Rot) {

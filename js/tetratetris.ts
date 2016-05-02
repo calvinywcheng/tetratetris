@@ -1,4 +1,5 @@
 /// <reference path="jquery.d.ts" />
+/// <reference path="lodash.d.ts" />
 
 class TetraTetrisGame {
 
@@ -249,7 +250,7 @@ class TetraTetrisGame {
 
 class GameState {
   public static AREA_LEN: number = 20;
-  private static ROTATE_DELAY: number = 100;
+  private static ROTATE_DELAY: number = 200;
   private _landed: number[][];
   private _nextDir: Dir = Dir.N;
   private _currTetromino: Tetromino;
@@ -363,8 +364,8 @@ class GameState {
         if (success) {
           console.log("Tetromino landed.");
           this._score += 10;
-          this.spawnTetromino();
           this.clearSquares();
+          this.spawnTetromino();
           return true;
         } else {
           console.log("Tetromino landed out of screen.");
@@ -405,10 +406,18 @@ class GameState {
     switch (dir) {
       case Dir.N:
         return new Pos(pos.x, pos.y - 1);
+      case Dir.NW:
+        return new Pos(pos.x - 1, pos.y - 1);
       case Dir.W:
         return new Pos(pos.x - 1, pos.y);
+      case Dir.NE:
+        return new Pos(pos.x + 1, pos.y - 1);
       case Dir.E:
         return new Pos(pos.x + 1, pos.y);
+      case Dir.SE:
+        return new Pos(pos.x + 1, pos.y + 1);
+      case Dir.SW:
+        return new Pos(pos.x - 1, pos.y + 1);
       case Dir.S:
         return new Pos(pos.x, pos.y + 1);
     }
@@ -444,7 +453,74 @@ class GameState {
   }
 
   private clearSquares(): void {
-    // TODO
+    let CLEAR_BASE_POINTS = 100;
+    let getSquare = (dist: number): {[key: string]: Pos[]} => {
+      let square: {[key: string]: Pos[]} = {};
+      let getRow = (start: Pos, end: Pos, dir: Dir): Pos[] => {
+        let next = GameState.translatePos;
+        let row: Pos[] = [];
+        for (let pos = next(start, dir); !_.isEqual(pos, end); pos = next(pos, dir)) {
+          row.push(pos);
+        }
+        return row;
+      };
+      square["NW"] = [new Pos(dist, dist)];
+      square["NE"] = [new Pos(19 - dist, dist)];
+      square["SW"] = [new Pos(dist, 19 - dist)];
+      square["SE"] = [new Pos(19 - dist, 19 - dist)];
+      square["N"] = getRow(square["NW"][0], square["NE"][0], Dir.E);
+      square["W"] = getRow(square["NW"][0], square["SW"][0], Dir.S);
+      square["E"] = getRow(square["NE"][0], square["SE"][0], Dir.S);
+      square["S"] = getRow(square["SW"][0], square["SE"][0], Dir.E);
+      return square;
+    };
+    let counter: number = 0;
+    for (let distFromEdge: number = 1; distFromEdge <= 8; distFromEdge++) {
+      let square: {[key: string]: Pos[]} = getSquare(distFromEdge);
+      console.log(square);
+      let complete: boolean = _.flatten(_.valuesIn(square)).every((e: Pos) => {
+        return !this.isClear(e);
+      });
+      if (complete) {
+        let recMove = (dst: Pos, moveDir: Dir): void => {
+          let src: Pos = GameState.translatePos(dst, Util.reverseDir(moveDir));
+          if (this.inGameArea(src)) {
+            this._landed[dst.y][dst.x] = this._landed[src.y][src.x];
+            recMove(src, moveDir);
+          } else {
+            this._landed[dst.y][dst.x] = 0;
+          }
+        };
+        let moveCorner = (dst: Pos, moveDir: Dir): void => {
+          let dirs: [Dir, Dir] = [
+            Util.reverseDir((moveDir + 45).mod(360)),
+            Util.reverseDir((moveDir - 45).mod(360))
+          ];
+          for (let dir of dirs) {
+            for (let pos: Pos = GameState.translatePos(dst, dir);
+                 pos.x.between(1, 18, true) && pos.y.between(1, 18, true);
+                 pos = GameState.translatePos(pos, dir)) {
+              recMove(pos, moveDir);
+            }
+          }
+          recMove(dst, Util.reverseDir(moveDir));
+        };
+        square["N"].forEach((p: Pos) => recMove(p, Dir.S));
+        square["W"].forEach((p: Pos) => recMove(p, Dir.E));
+        square["E"].forEach((p: Pos) => recMove(p, Dir.W));
+        square["S"].forEach((p: Pos) => recMove(p, Dir.N));
+        moveCorner(square["NW"][0], Dir.SE);
+        moveCorner(square["NE"][0], Dir.SW);
+        moveCorner(square["SW"][0], Dir.NE);
+        moveCorner(square["SE"][0], Dir.NW);
+        counter++;
+        distFromEdge = 1;
+      }
+    }
+    if (counter > 0) {
+      this._score += CLEAR_BASE_POINTS << counter;
+    }
+    console.log("Done checking for cleared squares");
   }
 
   private rotateBlock(rot: Rot): boolean {
@@ -791,6 +867,10 @@ class Util {
     }
   }
 
+  public static reverseDir(dir: Dir): Dir {
+    return (dir + 180) % 360;
+  }
+
   public static toKey(keyCode: number): string {
     switch (keyCode) {
       case 37:
@@ -814,7 +894,7 @@ class Util {
 }
 
 enum Dir {
-  N = 0, W = 270, E = 90, S = 180
+  N = 0, NE = 45, E = 90, SE = 135, S = 180, SW = 225, W = 270, NW = 315
 }
 
 enum Rot {
