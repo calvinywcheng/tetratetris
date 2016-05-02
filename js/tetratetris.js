@@ -10,7 +10,7 @@ var TetraTetrisGame = (function () {
         this.BLOCK_SIZE = 25;
         this.FPS = 30;
         this.renderTimerID = null;
-        this.TPS = 10;
+        this.TPS = 8;
         this.updateTimerID = null;
         this.state = new GameState();
         this.mainViewOffset = new Pos(50, 50);
@@ -59,7 +59,7 @@ var TetraTetrisGame = (function () {
         var _this = this;
         var stillAlive = this._keysPressed
             .every(function (key) { return _this.state.processInput(key); });
-        if (!stillAlive) {
+        if (this.state.gameOver) {
             console.log("Game over!");
             $("#pause-game").prop("disabled", true);
             this.haltGameLoop();
@@ -890,7 +890,7 @@ var Util = (function () {
                 return null;
         }
     };
-    Util.COLOURS = [null, "violet", "red", "orange", "gold", "green", "cyan", "purple", "lightgrey"];
+    Util.COLOURS = [null, "violet", "red", "orange", "gold", "green", "cyan", "purple", "white"];
     return Util;
 }());
 var Dir;

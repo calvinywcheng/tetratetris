@@ -11,7 +11,7 @@ class TetraTetrisGame {
   private BLOCK_SIZE: number = 25;
   private FPS: number = 30;
   private renderTimerID: number = null;
-  private TPS: number = 10;
+  private TPS: number = 8;
   private updateTimerID: number = null;
   private state: GameState = new GameState();
   private mainViewOffset: Pos = new Pos(50, 50);
@@ -65,7 +65,7 @@ class TetraTetrisGame {
   private update(): void {
     let stillAlive: boolean = this._keysPressed
         .every((key: string) => this.state.processInput(key));
-    if (!stillAlive) {
+    if (this.state.gameOver) {
       console.log("Game over!");
       $("#pause-game").prop("disabled", true);
       this.haltGameLoop();
@@ -824,7 +824,7 @@ class Util {
     throw new Error("Cannot instantiate Util class");
   }
 
-  public static COLOURS: string[] = [null, "violet", "red", "orange", "gold", "green", "cyan", "purple", "lightgrey"];
+  public static COLOURS: string[] = [null, "violet", "red", "orange", "gold", "green", "cyan", "purple", "white"];
 
   public static toDir(dir: string): Dir {
     switch (dir) {
