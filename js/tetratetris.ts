@@ -252,7 +252,7 @@ class GameState {
   public static AREA_LEN: number = 20;
   private static ROTATE_DELAY: number = 200;
   private _landed: number[][];
-  private _nextDir: Dir = Dir.N;
+  private _nextDir: Dir = Dir.NW;
   private _currTetromino: Tetromino;
   private _nextTetromino: Tetromino;
   private _holdTetromino: Tetromino = null;
@@ -315,10 +315,8 @@ class GameState {
         this._holdTetromino = this._nextTetromino;
         this.genNextTetromino();
       }
-      let tmp: Tetromino = this._currTetromino;
-      this._currTetromino = this._holdTetromino;
+      [this._currTetromino, this._holdTetromino] = [this._holdTetromino, this._currTetromino];
       this._currTetromino.setStartPos(Util.nextDir(this._nextDir, Rot.CCW));
-      this._holdTetromino = tmp;
       this._switched = true;
     }
     return true;
@@ -625,17 +623,17 @@ class Tetromino {
 
   public setStartPos(dir: Dir): Pos {
     switch (dir) {
-      case Dir.N:
-        this._pos = new Pos(8, 0 - this._maxY);
+      case Dir.NW:
+        this._pos = new Pos(0 - this._minX, 0 - this._minY);
         break;
-      case Dir.W:
-        this._pos = new Pos(0 - this._maxX, 8);
+      case Dir.NE:
+        this._pos = new Pos(19 - this._maxX, 0 - this._minY);
         break;
-      case Dir.E:
-        this._pos = new Pos(19 - this._minX, 8);
+      case Dir.SE:
+        this._pos = new Pos(19 - this._maxX, 19 - this._maxY);
         break;
-      case Dir.S:
-        this._pos = new Pos(8, 19 - this._minY);
+      case Dir.SW:
+        this._pos = new Pos(0 - this._minX, 19 - this._maxY);
         break;
       default:
         throw new Error("Direction not recognized.");
@@ -853,18 +851,7 @@ class Util {
   }
 
   public static nextDir(dir: Dir, rot: Rot): Dir {
-    switch (dir) {
-      case Dir.N:
-        return (rot === Rot.CW) ? Dir.E : Dir.W;
-      case Dir.E:
-        return (rot === Rot.CW) ? Dir.S : Dir.N;
-      case Dir.S:
-        return (rot === Rot.CW) ? Dir.W : Dir.E;
-      case Dir.W:
-        return (rot === Rot.CW) ? Dir.N : Dir.S;
-      default:
-        throw new Error("Direction invalid.");
-    }
+    return (dir + rot).mod(360);
   }
 
   public static reverseDir(dir: Dir): Dir {

@@ -235,7 +235,7 @@ var TetraTetrisGame = (function () {
 }());
 var GameState = (function () {
     function GameState() {
-        this._nextDir = Dir.N;
+        this._nextDir = Dir.NW;
         this._holdTetromino = null;
         this._lastRotateTime = Date.now();
         this._switched = false;
@@ -291,13 +291,12 @@ var GameState = (function () {
                 this._holdTetromino = this._nextTetromino;
                 this.genNextTetromino();
             }
-            var tmp = this._currTetromino;
-            this._currTetromino = this._holdTetromino;
+            _a = [this._holdTetromino, this._currTetromino], this._currTetromino = _a[0], this._holdTetromino = _a[1];
             this._currTetromino.setStartPos(Util.nextDir(this._nextDir, Rot.CCW));
-            this._holdTetromino = tmp;
             this._switched = true;
         }
         return true;
+        var _a;
     };
     GameState.prototype.spawnTetromino = function () {
         this._currTetromino = this._nextTetromino;
@@ -626,17 +625,17 @@ var Tetromino = (function () {
     };
     Tetromino.prototype.setStartPos = function (dir) {
         switch (dir) {
-            case Dir.N:
-                this._pos = new Pos(8, 0 - this._maxY);
+            case Dir.NW:
+                this._pos = new Pos(0 - this._minX, 0 - this._minY);
                 break;
-            case Dir.W:
-                this._pos = new Pos(0 - this._maxX, 8);
+            case Dir.NE:
+                this._pos = new Pos(19 - this._maxX, 0 - this._minY);
                 break;
-            case Dir.E:
-                this._pos = new Pos(19 - this._minX, 8);
+            case Dir.SE:
+                this._pos = new Pos(19 - this._maxX, 19 - this._maxY);
                 break;
-            case Dir.S:
-                this._pos = new Pos(8, 19 - this._minY);
+            case Dir.SW:
+                this._pos = new Pos(0 - this._minX, 19 - this._maxY);
                 break;
             default:
                 throw new Error("Direction not recognized.");
@@ -854,18 +853,7 @@ var Util = (function () {
         }
     };
     Util.nextDir = function (dir, rot) {
-        switch (dir) {
-            case Dir.N:
-                return (rot === Rot.CW) ? Dir.E : Dir.W;
-            case Dir.E:
-                return (rot === Rot.CW) ? Dir.S : Dir.N;
-            case Dir.S:
-                return (rot === Rot.CW) ? Dir.W : Dir.E;
-            case Dir.W:
-                return (rot === Rot.CW) ? Dir.N : Dir.S;
-            default:
-                throw new Error("Direction invalid.");
-        }
+        return (dir + rot).mod(360);
     };
     Util.reverseDir = function (dir) {
         return (dir + 180) % 360;
