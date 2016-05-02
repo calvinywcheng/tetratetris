@@ -824,7 +824,7 @@ class Util {
     throw new Error("Cannot instantiate Util class");
   }
 
-  public static COLOURS: string[] = [null, "violet", "red", "orange", "yellow", "green", "cyan", "purple", "lightgrey"];
+  public static COLOURS: string[] = [null, "violet", "red", "orange", "gold", "green", "cyan", "purple", "lightgrey"];
 
   public static toDir(dir: string): Dir {
     switch (dir) {

@@ -890,7 +890,7 @@ var Util = (function () {
                 return null;
         }
     };
-    Util.COLOURS = [null, "violet", "red", "orange", "yellow", "green", "cyan", "purple", "lightgrey"];
+    Util.COLOURS = [null, "violet", "red", "orange", "gold", "green", "cyan", "purple", "lightgrey"];
     return Util;
 }());
 var Dir;
