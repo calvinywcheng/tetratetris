@@ -59,7 +59,7 @@ var TetraTetrisGame = (function () {
         var _this = this;
         var stillAlive = this._keysPressed
             .every(function (key) { return _this.state.processInput(key); });
-        if (this.state.gameOver) {
+        if (!stillAlive) {
             console.log("Game over!");
             $("#pause-game").prop("disabled", true);
             this.haltGameLoop();
@@ -90,15 +90,17 @@ var TetraTetrisGame = (function () {
         ctx.globalAlpha = 1.0;
         ctx.fillStyle = "black";
         ctx.font = "18px Trebuchet MS";
-        ctx.fillText("Score:", 610, 470);
+        ctx.textBaseline = "top";
+        ctx.fillText("Score", 610, 460);
         ctx.fillStyle = "white";
-        ctx.fillText("Next Tetromino", 610, 70);
-        ctx.fillText("Hold Queue", 610, 270);
+        ctx.fillText("Next Tetromino", this.nextBlockOffset.x + 10, this.nextBlockOffset.y + 10);
+        ctx.fillText("Hold Queue", this.holdQueueOffset.x + 10, this.holdQueueOffset.y + 10);
         ctx.restore();
     };
     TetraTetrisGame.prototype.renderGameState = function () {
         this.renderNext();
         this.renderHold();
+        this.renderBBox();
         this.renderBlocks();
         this.renderCurrent();
         this.renderScore();
@@ -118,6 +120,19 @@ var TetraTetrisGame = (function () {
             var x = this.holdQueueOffset.x + 25;
             var y = this.holdQueueOffset.y + 45;
             this.renderTetromino(tetromino, new Pos(x, y));
+        }
+    };
+    TetraTetrisGame.prototype.renderBBox = function () {
+        var bBox = this.state.bBox;
+        if (bBox.tl.x >= 0 && bBox.tl.y >= 0) {
+            var ctx = this.ctx;
+            ctx.save();
+            ctx.strokeStyle = "lime";
+            ctx.translate(this.mainViewOffset.x, this.mainViewOffset.y);
+            ctx.scale(this.BLOCK_SIZE, this.BLOCK_SIZE);
+            ctx.lineWidth = 1 / this.BLOCK_SIZE;
+            ctx.strokeRect(bBox.tl.x, bBox.tl.y, bBox.width, bBox.height);
+            ctx.restore();
         }
     };
     TetraTetrisGame.prototype.renderTetromino = function (tetromino, offset) {
@@ -141,7 +156,9 @@ var TetraTetrisGame = (function () {
         var ctx = this.ctx;
         ctx.save();
         ctx.font = "50px Trebuchet MS";
-        ctx.fillText(this.state.score + "", 630, 525);
+        ctx.textBaseline = "bottom";
+        ctx.textAlign = "right";
+        ctx.fillText(this.state.score + "", 740, 590);
         ctx.restore();
     };
     TetraTetrisGame.prototype.renderBlocks = function () {
@@ -202,6 +219,9 @@ var TetraTetrisGame = (function () {
         $(document).ready(function () {
             $(document).keydown(function (e) {
                 var keyCode = e.which || e.keyCode;
+                if ([32, 37, 38, 39, 40].indexOf(keyCode) > -1) {
+                    e.preventDefault();
+                }
                 var key = Util.toKey(keyCode);
                 if (key != null && $.inArray(key, _this._keysPressed) === -1) {
                     _this._keysPressed.push(key);
@@ -301,6 +321,7 @@ var GameState = (function () {
     GameState.prototype.spawnTetromino = function () {
         this._currTetromino = this._nextTetromino;
         this._currTetromino.setStartPos(this._nextDir);
+        this.fitBBox();
         this._switched = false;
         this._nextDir = Util.nextDir(this._nextDir, Rot.CW);
         this.genNextTetromino();
@@ -325,11 +346,12 @@ var GameState = (function () {
     };
     GameState.prototype.advanceBlock = function (dir) {
         var curr = this._currTetromino;
-        var nextPos = GameState.translatePos(curr.pos, dir);
-        if (this.stillInBounds(curr, nextPos)) {
+        var nextPos = curr.pos.translate(dir);
+        if (this.inBBox(curr, nextPos)) {
             if (this.isValidPos(curr, nextPos)) {
                 console.log("Moving block ahead.");
                 curr.pos = nextPos;
+                this.fitBBox();
                 return true;
             }
             else {
@@ -352,49 +374,21 @@ var GameState = (function () {
             return true;
         }
     };
-    GameState.prototype.stillInBounds = function (curr, nextPos) {
-        var _this = this;
-        return curr.shape.some(function (row, j) {
-            return row.some(function (e, i) {
-                if (e === 0) {
-                    return false;
-                }
-                var testPos = new Pos(i + nextPos.x, j + nextPos.y);
-                return _this.inGameArea(testPos);
-            });
-        });
+    GameState.prototype.inBBox = function (curr, pos) {
+        var pieceBox = curr.bBox.translate(pos);
+        return pieceBox.containedIn(this._bBox);
     };
-    GameState.prototype.isValidPos = function (curr, nextPos) {
+    GameState.prototype.isValidPos = function (curr, pos) {
         var _this = this;
         return curr.shape.every(function (row, j) {
             return row.every(function (e, i) {
                 if (e === 0) {
                     return true;
                 }
-                var testPos = new Pos(i + nextPos.x, j + nextPos.y);
+                var testPos = new Pos(i + pos.x, j + pos.y);
                 return !_this.inGameArea(testPos) || _this.isClear(testPos);
             });
         });
-    };
-    GameState.translatePos = function (pos, dir) {
-        switch (dir) {
-            case Dir.N:
-                return new Pos(pos.x, pos.y - 1);
-            case Dir.NW:
-                return new Pos(pos.x - 1, pos.y - 1);
-            case Dir.W:
-                return new Pos(pos.x - 1, pos.y);
-            case Dir.NE:
-                return new Pos(pos.x + 1, pos.y - 1);
-            case Dir.E:
-                return new Pos(pos.x + 1, pos.y);
-            case Dir.SE:
-                return new Pos(pos.x + 1, pos.y + 1);
-            case Dir.SW:
-                return new Pos(pos.x - 1, pos.y + 1);
-            case Dir.S:
-                return new Pos(pos.x, pos.y + 1);
-        }
     };
     GameState.prototype.inGameArea = function (pos) {
         var len = this._landed.length;
@@ -431,9 +425,8 @@ var GameState = (function () {
         var getSquare = function (dist) {
             var square = {};
             var getRow = function (start, end, dir) {
-                var next = GameState.translatePos;
                 var row = [];
-                for (var pos = next(start, dir); !_.isEqual(pos, end); pos = next(pos, dir)) {
+                for (var pos = start.translate(dir); !_.isEqual(pos, end); pos = pos.translate(dir)) {
                     row.push(pos);
                 }
                 return row;
@@ -457,7 +450,7 @@ var GameState = (function () {
             });
             if (complete) {
                 var recMove_1 = function (dst, moveDir) {
-                    var src = GameState.translatePos(dst, Util.reverseDir(moveDir));
+                    var src = dst.translate(Util.reverseDir(moveDir));
                     if (_this.inGameArea(src)) {
                         _this._landed[dst.y][dst.x] = _this._landed[src.y][src.x];
                         recMove_1(src, moveDir);
@@ -473,7 +466,7 @@ var GameState = (function () {
                     ];
                     for (var _i = 0, dirs_1 = dirs; _i < dirs_1.length; _i++) {
                         var dir = dirs_1[_i];
-                        for (var pos = GameState.translatePos(dst, dir); pos.x.between(1, 18, true) && pos.y.between(1, 18, true); pos = GameState.translatePos(pos, dir)) {
+                        for (var pos = dst.translate(dir); pos.x.between(1, 18, true) && pos.y.between(1, 18, true); pos = pos.translate(dir)) {
                             recMove_1(pos, moveDir);
                         }
                     }
@@ -506,8 +499,9 @@ var GameState = (function () {
         if (Date.now() - this._lastRotateTime > GameState.ROTATE_DELAY) {
             var curr = this._currTetromino;
             curr.rotate(rot);
-            if (this.stillInBounds(curr, curr.pos) && this.isValidPos(curr, curr.pos)) {
+            if (this.isValidPos(curr, curr.pos)) {
                 console.log("Rotating block " + Rot[rot]);
+                this.fitBBox();
             }
             else {
                 curr.undoRotate(rot);
@@ -515,6 +509,15 @@ var GameState = (function () {
             this._lastRotateTime = Date.now();
         }
         return true;
+    };
+    GameState.prototype.fitBBox = function () {
+        var curr = this._currTetromino;
+        var box = new Box(new Pos(-3, -3), new Pos(23, 23));
+        while (curr.containedIn(box)) {
+            this._bBox = box;
+            box = box.shrink();
+        }
+        return this._bBox;
     };
     Object.defineProperty(GameState.prototype, "score", {
         get: function () {
@@ -526,6 +529,13 @@ var GameState = (function () {
     Object.defineProperty(GameState.prototype, "landed", {
         get: function () {
             return this._landed;
+        },
+        enumerable: true,
+        configurable: true
+    });
+    Object.defineProperty(GameState.prototype, "bBox", {
+        get: function () {
+            return this._bBox;
         },
         enumerable: true,
         configurable: true
@@ -567,21 +577,26 @@ var Tetromino = (function () {
         var _this = this;
         this._rotations = _rotations;
         this._rotation = 0;
-        this._minX = Number.MAX_VALUE;
-        this._maxX = Number.MIN_VALUE;
-        this._minY = Number.MAX_VALUE;
-        this._maxY = Number.MIN_VALUE;
+        this._minX = Number.POSITIVE_INFINITY;
+        this._maxX = Number.NEGATIVE_INFINITY;
+        this._minY = Number.POSITIVE_INFINITY;
+        this._maxY = Number.NEGATIVE_INFINITY;
         this._shape = this._rotations[0];
-        this._shape.forEach(function (row, j) {
-            row.forEach(function (e, i) {
-                if (e !== 0) {
-                    _this._minX = Math.min(_this._minX, i);
-                    _this._maxX = Math.max(_this._maxX, i);
-                    _this._minY = Math.min(_this._minY, j);
-                    _this._maxY = Math.max(_this._maxY, j);
-                }
+        this._rotations.forEach(function (rot) {
+            rot.forEach(function (row, j) {
+                row.forEach(function (e, i) {
+                    if (e !== 0) {
+                        _this._minX = Math.min(_this._minX, i);
+                        _this._maxX = Math.max(_this._maxX, i);
+                        _this._minY = Math.min(_this._minY, j);
+                        _this._maxY = Math.max(_this._maxY, j);
+                    }
+                });
             });
         });
+        var tl = new Pos(this._minX, this._minY);
+        var br = new Pos(this._maxX + 1, this._maxY + 1);
+        this._bBox = new Box(tl, br);
     }
     Object.defineProperty(Tetromino.prototype, "shape", {
         get: function () {
@@ -626,25 +641,39 @@ var Tetromino = (function () {
     Tetromino.prototype.setStartPos = function (dir) {
         switch (dir) {
             case Dir.NW:
-                this._pos = new Pos(0 - this._minX, 0 - this._minY);
+                this._pos = new Pos(0 - this._maxX, 0 - this._maxY);
                 break;
             case Dir.NE:
-                this._pos = new Pos(19 - this._maxX, 0 - this._minY);
+                this._pos = new Pos(19 - this._minX, 0 - this._maxY);
                 break;
             case Dir.SE:
-                this._pos = new Pos(19 - this._maxX, 19 - this._maxY);
+                this._pos = new Pos(19 - this._minX, 19 - this._minY);
                 break;
             case Dir.SW:
-                this._pos = new Pos(0 - this._minX, 19 - this._maxY);
+                this._pos = new Pos(0 - this._maxX, 19 - this._minY);
                 break;
             default:
                 throw new Error("Direction not recognized.");
         }
         return this._pos;
     };
-    Tetromino.prototype.getMidPos = function () {
-        return new Pos(this._pos.x + 2, this.pos.y + 2);
+    Tetromino.prototype.containedIn = function (box) {
+        return this.bBoxWithOffset.containedIn(box);
     };
+    Object.defineProperty(Tetromino.prototype, "bBox", {
+        get: function () {
+            return this._bBox;
+        },
+        enumerable: true,
+        configurable: true
+    });
+    Object.defineProperty(Tetromino.prototype, "bBoxWithOffset", {
+        get: function () {
+            return this.bBox.translate(this._pos);
+        },
+        enumerable: true,
+        configurable: true
+    });
     return Tetromino;
 }());
 var ITetromino = (function (_super) {
@@ -919,7 +948,114 @@ var Pos = (function () {
     Pos.prototype.toTuple = function () {
         return [this._x, this._y];
     };
+    Pos.prototype.translate = function (dir) {
+        switch (dir) {
+            case Dir.N:
+                return new Pos(this.x, this.y - 1);
+            case Dir.NW:
+                return new Pos(this.x - 1, this.y - 1);
+            case Dir.W:
+                return new Pos(this.x - 1, this.y);
+            case Dir.NE:
+                return new Pos(this.x + 1, this.y - 1);
+            case Dir.E:
+                return new Pos(this.x + 1, this.y);
+            case Dir.SE:
+                return new Pos(this.x + 1, this.y + 1);
+            case Dir.SW:
+                return new Pos(this.x - 1, this.y + 1);
+            case Dir.S:
+                return new Pos(this.x, this.y + 1);
+        }
+    };
     return Pos;
+}());
+var Box = (function () {
+    function Box(_tl, _br) {
+        this._tl = _tl;
+        this._br = _br;
+        this._width = _br.x - _tl.x;
+        this._height = _br.y - _tl.y;
+    }
+    Box.prototype.translate = function (pos) {
+        var newTl = new Pos(this._tl.x + pos.x, this._tl.y + pos.y);
+        var newBr = new Pos(this._br.x + pos.x, this._br.y + pos.y);
+        return new Box(newTl, newBr);
+    };
+    Box.prototype.containedIn = function (box) {
+        return this.tl.x >= box.tl.x
+            && this.tl.y >= box.tl.y
+            && this.br.x <= box.br.x
+            && this.br.y <= box.br.y;
+    };
+    Box.prototype.contains = function (box) {
+        return box.containedIn(this);
+    };
+    Box.prototype.touches = function (box) {
+        var a = this;
+        var b = box;
+        return b.br.x >= a.tl.x
+            && b.br.y >= a.tl.y
+            && b.tl.x <= a.br.x
+            && b.tl.y <= a.br.y;
+    };
+    Box.prototype.intersects = function (box) {
+        var a = this;
+        var b = box;
+        return b.br.x > a.tl.x
+            && b.br.y > a.tl.y
+            && b.tl.x < a.br.x
+            && b.tl.y < a.br.y;
+    };
+    Box.prototype.shrink = function () {
+        if (_.isEqual(this._tl, this._br)) {
+            throw new Error("Unable to shrink box");
+        }
+        return new Box(this._tl.translate(Dir.SE), this._br.translate(Dir.NW));
+    };
+    Object.defineProperty(Box.prototype, "tl", {
+        get: function () {
+            return this._tl;
+        },
+        enumerable: true,
+        configurable: true
+    });
+    Object.defineProperty(Box.prototype, "br", {
+        get: function () {
+            return this._br;
+        },
+        enumerable: true,
+        configurable: true
+    });
+    Object.defineProperty(Box.prototype, "x", {
+        get: function () {
+            return this._x;
+        },
+        enumerable: true,
+        configurable: true
+    });
+    Object.defineProperty(Box.prototype, "y", {
+        get: function () {
+            return this._y;
+        },
+        enumerable: true,
+        configurable: true
+    });
+    Object.defineProperty(Box.prototype, "width", {
+        get: function () {
+            return this._width;
+        },
+        enumerable: true,
+        configurable: true
+    });
+    Object.defineProperty(Box.prototype, "height", {
+        get: function () {
+            return this._height;
+        },
+        enumerable: true,
+        configurable: true
+    });
+    return Box;
 }());
 Number.prototype.between = function (a, b, inc) {
     var min = Math.min(a, b);

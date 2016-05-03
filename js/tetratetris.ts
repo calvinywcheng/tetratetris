@@ -65,7 +65,7 @@ class TetraTetrisGame {
   private update(): void {
     let stillAlive: boolean = this._keysPressed
         .every((key: string) => this.state.processInput(key));
-    if (this.state.gameOver) {
+    if (!stillAlive) {
       console.log("Game over!");
       $("#pause-game").prop("disabled", true);
       this.haltGameLoop();
@@ -98,16 +98,24 @@ class TetraTetrisGame {
     ctx.globalAlpha = 1.0;
     ctx.fillStyle = "black";
     ctx.font = "18px Trebuchet MS";
-    ctx.fillText("Score:", 610, 470);
+    ctx.textBaseline = "top";
+    ctx.fillText("Score", 610, 460);
     ctx.fillStyle = "white";
-    ctx.fillText("Next Tetromino", 610, 70);
-    ctx.fillText("Hold Queue", 610, 270);
+    ctx.fillText(
+        "Next Tetromino",
+        this.nextBlockOffset.x + 10,
+        this.nextBlockOffset.y + 10);
+    ctx.fillText(
+        "Hold Queue",
+        this.holdQueueOffset.x + 10,
+        this.holdQueueOffset.y + 10);
     ctx.restore();
   }
 
   private renderGameState(): void {
     this.renderNext();
     this.renderHold();
+    this.renderBBox();
     this.renderBlocks();
     this.renderCurrent();
     this.renderScore();
@@ -132,6 +140,20 @@ class TetraTetrisGame {
     }
   }
 
+  private renderBBox(): void {
+    let bBox: Box = this.state.bBox;
+    if (bBox.tl.x >= 0 && bBox.tl.y >= 0) {
+      let ctx: CanvasRenderingContext2D = this.ctx;
+      ctx.save();
+      ctx.strokeStyle = "lime";
+      ctx.translate(this.mainViewOffset.x, this.mainViewOffset.y);
+      ctx.scale(this.BLOCK_SIZE, this.BLOCK_SIZE);
+      ctx.lineWidth = 1 / this.BLOCK_SIZE;
+      ctx.strokeRect(bBox.tl.x, bBox.tl.y, bBox.width, bBox.height);
+      ctx.restore();
+    }
+  }
+
   private renderTetromino(tetromino: Tetromino, offset: Pos): void {
     let ctx: CanvasRenderingContext2D = this.ctx;
     ctx.save();
@@ -153,7 +175,9 @@ class TetraTetrisGame {
     let ctx = this.ctx;
     ctx.save();
     ctx.font = "50px Trebuchet MS";
-    ctx.fillText(this.state.score + "", 630, 525);
+    ctx.textBaseline = "bottom";
+    ctx.textAlign = "right";
+    ctx.fillText(this.state.score + "", 740, 590);
     ctx.restore();
   }
 
@@ -217,6 +241,9 @@ class TetraTetrisGame {
     $(document).ready(() => {
       $(document).keydown((e: KeyboardEvent) => {
         let keyCode: number = e.which || e.keyCode;
+        if ([32, 37, 38, 39, 40].indexOf(keyCode) > -1) {
+          e.preventDefault();
+        }
         let key: string = Util.toKey(keyCode);
         if (key != null && $.inArray(key, this._keysPressed) === -1) {
           this._keysPressed.push(key);
@@ -259,6 +286,7 @@ class GameState {
   private _lastRotateTime: number = Date.now();
   private _switched: boolean = false;
   private _score: number = 0;
+  private _bBox: Box;
   private _gameOver: boolean = false;
 
   constructor() {
@@ -325,6 +353,7 @@ class GameState {
   private spawnTetromino(): void {
     this._currTetromino = this._nextTetromino;
     this._currTetromino.setStartPos(this._nextDir);
+    this.fitBBox();
     this._switched = false;
     this._nextDir = Util.nextDir(this._nextDir, Rot.CW);
     this.genNextTetromino();
@@ -351,11 +380,12 @@ class GameState {
 
   public advanceBlock(dir: Dir): boolean {
     let curr: Tetromino = this._currTetromino;
-    let nextPos: Pos = GameState.translatePos(curr.pos, dir);
-    if (this.stillInBounds(curr, nextPos)) {
+    let nextPos: Pos = curr.pos.translate(dir);
+    if (this.inBBox(curr, nextPos)) {
       if (this.isValidPos(curr, nextPos)) {
         console.log("Moving block ahead.");
         curr.pos = nextPos;
+        this.fitBBox();
         return true;
       } else {
         let success: boolean = this.landTetromino(curr);
@@ -376,49 +406,21 @@ class GameState {
     }
   }
 
-  private stillInBounds(curr: Tetromino, nextPos: Pos) {
-    return curr.shape.some((row, j) => {
-      return row.some((e, i) => {
-        if (e === 0) {
-          return false;
-        }
-        let testPos: Pos = new Pos(i + nextPos.x, j + nextPos.y);
-        return this.inGameArea(testPos);
-      });
-    });
+  private inBBox(curr: Tetromino, pos: Pos): boolean {
+    let pieceBox = curr.bBox.translate(pos);
+    return pieceBox.containedIn(this._bBox);
   }
 
-  private isValidPos(curr: Tetromino, nextPos: Pos) {
+  private isValidPos(curr: Tetromino, pos: Pos) {
     return curr.shape.every((row, j) => {
       return row.every((e, i) => {
         if (e === 0) {
           return true;
         }
-        let testPos: Pos = new Pos(i + nextPos.x, j + nextPos.y);
+        let testPos: Pos = new Pos(i + pos.x, j + pos.y);
         return !this.inGameArea(testPos) || this.isClear(testPos);
       });
     });
-  }
-
-  private static translatePos(pos: Pos, dir: Dir): Pos {
-    switch (dir) {
-      case Dir.N:
-        return new Pos(pos.x, pos.y - 1);
-      case Dir.NW:
-        return new Pos(pos.x - 1, pos.y - 1);
-      case Dir.W:
-        return new Pos(pos.x - 1, pos.y);
-      case Dir.NE:
-        return new Pos(pos.x + 1, pos.y - 1);
-      case Dir.E:
-        return new Pos(pos.x + 1, pos.y);
-      case Dir.SE:
-        return new Pos(pos.x + 1, pos.y + 1);
-      case Dir.SW:
-        return new Pos(pos.x - 1, pos.y + 1);
-      case Dir.S:
-        return new Pos(pos.x, pos.y + 1);
-    }
   }
 
   private inGameArea(pos: Pos): boolean {
@@ -455,9 +457,8 @@ class GameState {
     let getSquare = (dist: number): {[key: string]: Pos[]} => {
       let square: {[key: string]: Pos[]} = {};
       let getRow = (start: Pos, end: Pos, dir: Dir): Pos[] => {
-        let next = GameState.translatePos;
         let row: Pos[] = [];
-        for (let pos = next(start, dir); !_.isEqual(pos, end); pos = next(pos, dir)) {
+        for (let pos = start.translate(dir); !_.isEqual(pos, end); pos = pos.translate(dir)) {
           row.push(pos);
         }
         return row;
@@ -481,7 +482,7 @@ class GameState {
       });
       if (complete) {
         let recMove = (dst: Pos, moveDir: Dir): void => {
-          let src: Pos = GameState.translatePos(dst, Util.reverseDir(moveDir));
+          let src: Pos = dst.translate(Util.reverseDir(moveDir));
           if (this.inGameArea(src)) {
             this._landed[dst.y][dst.x] = this._landed[src.y][src.x];
             recMove(src, moveDir);
@@ -495,9 +496,9 @@ class GameState {
             Util.reverseDir((moveDir - 45).mod(360))
           ];
           for (let dir of dirs) {
-            for (let pos: Pos = GameState.translatePos(dst, dir);
+            for (let pos: Pos = dst.translate(dir);
                  pos.x.between(1, 18, true) && pos.y.between(1, 18, true);
-                 pos = GameState.translatePos(pos, dir)) {
+                 pos = pos.translate(dir)) {
               recMove(pos, moveDir);
             }
           }
@@ -525,8 +526,9 @@ class GameState {
     if (Date.now() - this._lastRotateTime > GameState.ROTATE_DELAY) {
       let curr: Tetromino = this._currTetromino;
       curr.rotate(rot);
-      if (this.stillInBounds(curr, curr.pos) && this.isValidPos(curr, curr.pos)) {
+      if (this.isValidPos(curr, curr.pos)) {
         console.log(`Rotating block ${Rot[rot]}`);
+        this.fitBBox();
       } else {
         curr.undoRotate(rot);
       }
@@ -535,12 +537,26 @@ class GameState {
     return true;
   }
 
+  private fitBBox(): Box {
+    let curr: Tetromino = this._currTetromino;
+    let box: Box = new Box(new Pos(-3, -3), new Pos(23, 23));
+    while (curr.containedIn(box)) {
+      this._bBox = box;
+      box = box.shrink();
+    }
+    return this._bBox;
+  }
+
   public get score(): number {
     return this._score;
   }
 
   public get landed(): number[][] {
     return this._landed;
+  }
+
+  public get bBox(): Box {
+    return this._bBox;
   }
 
   public get currTetromino(): Tetromino {
@@ -565,23 +581,29 @@ class Tetromino {
   private _pos: Pos;
   private _shape: number[][];
   private _rotation: number = 0;
-  private _minX: number = Number.MAX_VALUE;
-  private _maxX: number = Number.MIN_VALUE;
-  private _minY: number = Number.MAX_VALUE;
-  private _maxY: number = Number.MIN_VALUE;
+  private _minX: number = Number.POSITIVE_INFINITY;
+  private _maxX: number = Number.NEGATIVE_INFINITY;
+  private _minY: number = Number.POSITIVE_INFINITY;
+  private _maxY: number = Number.NEGATIVE_INFINITY;
+  private _bBox;
 
   constructor(private _rotations: number[][][]) {
     this._shape = this._rotations[0];
-    this._shape.forEach((row, j) => {
-      row.forEach((e, i) => {
-        if (e !== 0) {
-          this._minX = Math.min(this._minX, i);
-          this._maxX = Math.max(this._maxX, i);
-          this._minY = Math.min(this._minY, j);
-          this._maxY = Math.max(this._maxY, j);
-        }
-      })
-    })
+    this._rotations.forEach((rot) => {
+      rot.forEach((row, j) => {
+        row.forEach((e, i) => {
+          if (e !== 0) {
+            this._minX = Math.min(this._minX, i);
+            this._maxX = Math.max(this._maxX, i);
+            this._minY = Math.min(this._minY, j);
+            this._maxY = Math.max(this._maxY, j);
+          }
+        })
+      });
+    });
+    let tl: Pos = new Pos(this._minX, this._minY);
+    let br: Pos = new Pos(this._maxX + 1, this._maxY + 1);
+    this._bBox = new Box(tl, br);
   }
 
   public get shape(): number[][] {
@@ -624,16 +646,16 @@ class Tetromino {
   public setStartPos(dir: Dir): Pos {
     switch (dir) {
       case Dir.NW:
-        this._pos = new Pos(0 - this._minX, 0 - this._minY);
+        this._pos = new Pos(0 - this._maxX, 0 - this._maxY);
         break;
       case Dir.NE:
-        this._pos = new Pos(19 - this._maxX, 0 - this._minY);
+        this._pos = new Pos(19 - this._minX, 0 - this._maxY);
         break;
       case Dir.SE:
-        this._pos = new Pos(19 - this._maxX, 19 - this._maxY);
+        this._pos = new Pos(19 - this._minX, 19 - this._minY);
         break;
       case Dir.SW:
-        this._pos = new Pos(0 - this._minX, 19 - this._maxY);
+        this._pos = new Pos(0 - this._maxX, 19 - this._minY);
         break;
       default:
         throw new Error("Direction not recognized.");
@@ -641,8 +663,16 @@ class Tetromino {
     return this._pos;
   }
 
-  public getMidPos(): Pos {
-    return new Pos(this._pos.x + 2, this.pos.y + 2);
+  public containedIn(box: Box): boolean {
+    return this.bBoxWithOffset.containedIn(box);
+  }
+
+  public get bBox(): Box {
+    return this._bBox;
+  }
+
+  private get bBoxWithOffset(): Box {
+    return this.bBox.translate(this._pos);
   }
 }
 
@@ -902,6 +932,105 @@ class Pos {
 
   public toTuple(): [number, number] {
     return [this._x, this._y];
+  }
+
+  public translate(dir: Dir): Pos {
+    switch (dir) {
+      case Dir.N:
+        return new Pos(this.x, this.y - 1);
+      case Dir.NW:
+        return new Pos(this.x - 1, this.y - 1);
+      case Dir.W:
+        return new Pos(this.x - 1, this.y);
+      case Dir.NE:
+        return new Pos(this.x + 1, this.y - 1);
+      case Dir.E:
+        return new Pos(this.x + 1, this.y);
+      case Dir.SE:
+        return new Pos(this.x + 1, this.y + 1);
+      case Dir.SW:
+        return new Pos(this.x - 1, this.y + 1);
+      case Dir.S:
+        return new Pos(this.x, this.y + 1);
+    }
+  }
+}
+
+class Box {
+  private _x: number;
+  private _y: number;
+  private _width: number;
+  private _height: number;
+
+  constructor(private _tl: Pos, private _br: Pos) {
+    this._width = _br.x - _tl.x;
+    this._height = _br.y - _tl.y;
+  }
+
+  public translate(pos: Pos): Box {
+    let newTl = new Pos(this._tl.x + pos.x, this._tl.y + pos.y);
+    let newBr = new Pos(this._br.x + pos.x, this._br.y + pos.y);
+    return new Box(newTl, newBr);
+  }
+
+  public containedIn(box: Box): boolean {
+    return this.tl.x >= box.tl.x
+        && this.tl.y >= box.tl.y
+        && this.br.x <= box.br.x
+        && this.br.y <= box.br.y;
+  }
+
+  public contains(box: Box): boolean {
+    return box.containedIn(this);
+  }
+
+  public touches(box: Box): boolean {
+    let a: Box = this;
+    let b: Box = box;
+    return b.br.x >= a.tl.x
+        && b.br.y >= a.tl.y
+        && b.tl.x <= a.br.x
+        && b.tl.y <= a.br.y;
+  }
+
+  public intersects(box: Box): boolean {
+    let a: Box = this;
+    let b: Box = box;
+    return b.br.x > a.tl.x
+        && b.br.y > a.tl.y
+        && b.tl.x < a.br.x
+        && b.tl.y < a.br.y;
+  }
+
+  public shrink(): Box {
+    if (_.isEqual(this._tl, this._br)) {
+      throw new Error("Unable to shrink box");
+    }
+    return new Box(this._tl.translate(Dir.SE), this._br.translate(Dir.NW));
+  }
+
+  public get tl(): Pos {
+    return this._tl;
+  }
+
+  public get br(): Pos {
+    return this._br;
+  }
+
+  public get x(): number {
+    return this._x;
+  }
+
+  public get y(): number {
+    return this._y;
+  }
+
+  public get width(): number {
+    return this._width;
+  }
+
+  public get height(): number {
+    return this._height;
   }
 }
 
