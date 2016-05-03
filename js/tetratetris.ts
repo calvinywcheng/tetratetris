@@ -13,6 +13,8 @@ class TetraTetrisGame {
   private renderTimerID: number = null;
   private TPS: number = 8;
   private updateTimerID: number = null;
+  private BPS: number = 0.5;
+  private lastMoveTime = Date.now();
   private state: GameState = new GameState();
   private mainViewOffset: Pos = new Pos(50, 50);
   private nextBlockOffset: Pos = new Pos(600, 50);
@@ -65,6 +67,10 @@ class TetraTetrisGame {
   private update(): void {
     let stillAlive: boolean = this._keysPressed
         .every((key: string) => this.state.processInput(key));
+    if (Date.now() - this.lastMoveTime > 1000 / this.BPS) {
+      stillAlive = stillAlive && this.state.forceAdvance();
+      this.lastMoveTime = Date.now();
+    }
     if (!stillAlive) {
       console.log("Game over!");
       $("#pause-game").prop("disabled", true);
@@ -177,7 +183,7 @@ class TetraTetrisGame {
     ctx.font = "50px Trebuchet MS";
     ctx.textBaseline = "bottom";
     ctx.textAlign = "right";
-    ctx.fillText(this.state.score + "", 740, 590);
+    ctx.fillText(this.state.score + "", 740, 540);
     ctx.restore();
   }
 
@@ -272,6 +278,10 @@ class TetraTetrisGame {
         game.reset();
       });
     });
+  }
+
+  public incBPS(amount: number): void {
+    this.BPS += amount;
   }
 }
 
@@ -393,6 +403,7 @@ class GameState {
           console.log("Tetromino landed.");
           this._score += 10;
           this.clearSquares();
+          game.incBPS(0.01);
           this.spawnTetromino();
           return true;
         } else {
@@ -404,6 +415,13 @@ class GameState {
     } else {
       return true;
     }
+  }
+
+  public forceAdvance(): boolean {
+    this.fitBBox();
+    this._bBox = this._bBox.shrink();
+    let dir: Dir = this._currTetromino.dirIntoBox(this._bBox);
+    return this.advanceBlock(dir);
   }
 
   private inBBox(curr: Tetromino, pos: Pos): boolean {
@@ -661,6 +679,34 @@ class Tetromino {
         throw new Error("Direction not recognized.");
     }
     return this._pos;
+  }
+
+  public dirIntoBox(box: Box): Dir {
+    let a: Box = this.bBoxWithOffset;
+    let b: Box = box;
+    let moreN: boolean = a.tl.y < b.tl.y;
+    let moreW: boolean = a.tl.x < b.tl.x;
+    let moreE: boolean = a.br.x > b.br.x;
+    let moreS: boolean = a.br.y > b.br.y;
+    if (moreN && moreW) {
+      return Dir.SE;
+    } else if (moreN && moreE) {
+      return Dir.SW;
+    } else if (moreW && moreS) {
+      return Dir.NE;
+    } else if (moreE && moreS) {
+      return Dir.NW;
+    } else if (moreN) {
+      return Dir.S;
+    } else if (moreE) {
+      return Dir.W;
+    } else if (moreW) {
+      return Dir.E;
+    } else if (moreS) {
+      return Dir.N;
+    } else {
+      throw new Error("Tetromino is already inside the box!");
+    }
   }
 
   public containedIn(box: Box): boolean {
@@ -963,6 +1009,8 @@ class Box {
   private _height: number;
 
   constructor(private _tl: Pos, private _br: Pos) {
+    this._x = _tl.x;
+    this._y = _tl.y;
     this._width = _br.x - _tl.x;
     this._height = _br.y - _tl.y;
   }

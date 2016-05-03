@@ -12,6 +12,8 @@ var TetraTetrisGame = (function () {
         this.renderTimerID = null;
         this.TPS = 8;
         this.updateTimerID = null;
+        this.BPS = 0.5;
+        this.lastMoveTime = Date.now();
         this.state = new GameState();
         this.mainViewOffset = new Pos(50, 50);
         this.nextBlockOffset = new Pos(600, 50);
@@ -59,6 +61,10 @@ var TetraTetrisGame = (function () {
         var _this = this;
         var stillAlive = this._keysPressed
             .every(function (key) { return _this.state.processInput(key); });
+        if (Date.now() - this.lastMoveTime > 1000 / this.BPS) {
+            stillAlive = stillAlive && this.state.forceAdvance();
+            this.lastMoveTime = Date.now();
+        }
         if (!stillAlive) {
             console.log("Game over!");
             $("#pause-game").prop("disabled", true);
@@ -158,7 +164,7 @@ var TetraTetrisGame = (function () {
         ctx.font = "50px Trebuchet MS";
         ctx.textBaseline = "bottom";
         ctx.textAlign = "right";
-        ctx.fillText(this.state.score + "", 740, 590);
+        ctx.fillText(this.state.score + "", 740, 540);
         ctx.restore();
     };
     TetraTetrisGame.prototype.renderBlocks = function () {
@@ -250,6 +256,9 @@ var TetraTetrisGame = (function () {
                 game.reset();
             });
         });
+    };
+    TetraTetrisGame.prototype.incBPS = function (amount) {
+        this.BPS += amount;
     };
     return TetraTetrisGame;
 }());
@@ -360,6 +369,7 @@ var GameState = (function () {
                     console.log("Tetromino landed.");
                     this._score += 10;
                     this.clearSquares();
+                    game.incBPS(0.01);
                     this.spawnTetromino();
                     return true;
                 }
@@ -373,6 +383,12 @@ var GameState = (function () {
         else {
             return true;
         }
+    };
+    GameState.prototype.forceAdvance = function () {
+        this.fitBBox();
+        this._bBox = this._bBox.shrink();
+        var dir = this._currTetromino.dirIntoBox(this._bBox);
+        return this.advanceBlock(dir);
     };
     GameState.prototype.inBBox = function (curr, pos) {
         var pieceBox = curr.bBox.translate(pos);
@@ -656,6 +672,41 @@ var Tetromino = (function () {
                 throw new Error("Direction not recognized.");
         }
         return this._pos;
+    };
+    Tetromino.prototype.dirIntoBox = function (box) {
+        var a = this.bBoxWithOffset;
+        var b = box;
+        var moreN = a.tl.y < b.tl.y;
+        var moreW = a.tl.x < b.tl.x;
+        var moreE = a.br.x > b.br.x;
+        var moreS = a.br.y > b.br.y;
+        if (moreN && moreW) {
+            return Dir.SE;
+        }
+        else if (moreN && moreE) {
+            return Dir.SW;
+        }
+        else if (moreW && moreS) {
+            return Dir.NE;
+        }
+        else if (moreE && moreS) {
+            return Dir.NW;
+        }
+        else if (moreN) {
+            return Dir.S;
+        }
+        else if (moreE) {
+            return Dir.W;
+        }
+        else if (moreW) {
+            return Dir.E;
+        }
+        else if (moreS) {
+            return Dir.N;
+        }
+        else {
+            throw new Error("Tetromino is already inside the box!");
+        }
     };
     Tetromino.prototype.containedIn = function (box) {
         return this.bBoxWithOffset.containedIn(box);
@@ -974,6 +1025,8 @@ var Box = (function () {
     function Box(_tl, _br) {
         this._tl = _tl;
         this._br = _br;
+        this._x = _tl.x;
+        this._y = _tl.y;
         this._width = _br.x - _tl.x;
         this._height = _br.y - _tl.y;
     }
