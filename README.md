@@ -2,6 +2,8 @@
 
 An HTML5 game loosely based on Tetris, where blocks come from all four sides of the screen
 
+You can try playing the game here: [http://tetratetris.paperplane.io/](http://tetratetris.paperplane.io/)
+
 #### Objective
 
 The classic game of Tetris is quite one-dimensional; blocks only come from the top and keep falling downwards. Like many things in life, however, it's often nice to add a different perspective.
